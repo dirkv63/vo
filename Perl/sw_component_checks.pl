@@ -42,12 +42,7 @@ No inline options are available. There is a properties\vo.ini file that contains
 # Variables
 ########### 
 
-my ($log, $dbh, $top_ci, $msg, @msgs, $computer, $cluster, $connections, %states);
-my @ci_types = ("ANDERE TOEP.COMP.INSTALL.",
-	            "DB TOEP.COMP-INSTALL.",
-				"RAPPORTEN",
-				"TOEP.COMP. COLLAB. SYST.",
-				"WEB TOEP.COMP-INSTALL.");
+my ($log, $cfg, $dbh, $top_ci, $msg, @msgs, $computer, $cluster, $connections, %states);
 my @fields = qw (sw_id sw_naam sw_type sw_categorie 
                  comp_id comp_naam comp_type comp_categorie 
 				 connections msgstr 
@@ -57,6 +52,9 @@ my @fields = qw (sw_id sw_naam sw_type sw_categorie
 #####
 # use
 #####
+
+use FindBin;
+use lib "$FindBin::Bin/lib";
 
 use warnings;			    # show warning messages
 use strict 'vars';
@@ -69,7 +67,7 @@ use DbUtil qw(db_connect do_select do_stmt singleton_select create_record);
 
 use Log::Log4perl qw(get_logger);
 use SimpleLog qw(setup_logging);
-use IniUtil qw(load_ini get_ini);
+use IniUtil qw(load_ini);
 use XlsWrite qw(write_table);
 
 use Data::Dumper;
@@ -78,8 +76,8 @@ use Data::Dumper;
 # Trace Warnings
 ################
 
-use Carp;
-$SIG{__WARN__} = sub { Carp::confess( @_ ) };
+# use Carp;
+# $SIG{__WARN__} = sub { Carp::confess( @_ ) };
 
 #############
 # subroutines
@@ -278,7 +276,7 @@ if (defined $options{"h"}) {
 }
 # Get ini file configuration
 my $ini = { project => "vo" };
-my $cfg = load_ini($ini);
+$cfg = load_ini($ini);
 # Start logging
 setup_logging;
 $log = get_logger();
@@ -332,6 +330,7 @@ unless (do_stmt($dbh, $query)) {
 
 $log->info("Investigating SW Components");
 # Get all the SW Components
+my @ci_types = $cfg->val("TYPES", "sw_type");
 my $where_str = join (" OR ", map { "ci_type = ?" } @ci_types);
 $query = "SELECT `cmdb_id`, `naam`, `ci_categorie`, `ci_type`, status
 			 FROM component
