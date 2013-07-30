@@ -58,8 +58,9 @@ No inline options are available. There is a properties\vo.ini file that contains
 
 my ($log, $cfg, $dbh, $top_ci, $msg, @msgs, $connections, %states);
 my ($comp, $no_comp, $sw_cnt, $sw_cnt_bou, $job_cnt, $job_cnt_bou, %locations);
+my ($complexiteit, $migratie);
 my @fields = qw (cmdb_id naam connections comp no_comp sw_cnt sw_cnt_bou 
-				 job_cnt job_cnt_bou msgstr 
+				 job_cnt job_cnt_bou complexiteit migratie msgstr 
 				 status_not_defined status_buiten_gebruik status_in_gebruik
 				 status_in_stock status_nieuw status_not_niet_in_gebruik);
 
@@ -181,7 +182,7 @@ sub get_type {
 		$log->error("SW Type $sw_type unknown (should be sw_type or job_type)");
 		return;
 	}
-	my @fields = qw (comp_naam comp_type connections
+	my @fields = qw (comp_naam comp_type connections complexiteit migratie
 					 status_not_defined status_buiten_gebruik status_in_gebruik
 					 status_in_stock status_nieuw status_not_niet_in_gebruik);
 	my $selectstr = join (", ", map { $_ } @fields);
@@ -198,6 +199,8 @@ sub get_type {
 		$no_comp++;
 	}
 	$connections += $$arrayhdl{connections};
+	$complexiteit += $$arrayhdl{complexiteit};
+	$migratie += $$arrayhdl{migratie};
 	foreach my $status (qw(status_not_defined status_buiten_gebruik status_in_gebruik
 		status_in_stock status_nieuw status_not_niet_in_gebruik)) {
 		$states{$status} += $$arrayhdl{$status};
@@ -211,7 +214,12 @@ sub save_results {
 		push @$msgref, $msg;
 	}
 	my $msgstr = join ("\n", @$msgref);
-	my @fields = qw (cmdb_id naam connections comp no_comp sw_cnt sw_cnt_bou job_cnt job_cnt_bou msgstr);
+	# Set migratie & complexiteit kost to 0 if not related to Boudewijn Computerzaal
+	if (($sw_cnt_bou == 0) && ($job_cnt_bou == 0)) {
+		$complexiteit = 0;
+		$migratie = 0;
+	}
+	my @fields = qw (cmdb_id naam connections comp no_comp sw_cnt sw_cnt_bou job_cnt job_cnt_bou complexiteit migratie msgstr);
     my (@vals) = map { eval ("\$" . $_ ) } @fields;
 	# Also add status counters to fields and vals
 	foreach my $status (qw(status_not_defined status_buiten_gebruik status_in_gebruik
@@ -288,6 +296,8 @@ $query = "CREATE TABLE IF NOT EXISTS `apps_checks` (
 			  `sw_cnt_bou` int(11) DEFAULT NULL,
 			  `job_cnt` int(11) DEFAULT NULL,
 			  `job_cnt_bou` int(11) DEFAULT NULL,
+			  `complexiteit` double DEFAULT NULL,
+			  `migratie` double DEFAULT NULL,
 			  `msgstr` text,
 			  `status_not_defined` int(11) DEFAULT NULL,
 			  `status_buiten_gebruik` int(11) DEFAULT NULL,
@@ -332,6 +342,8 @@ foreach my $record (@$ref) {
 	$sw_cnt_bou = 0;
 	$job_cnt = 0;
 	$job_cnt_bou = 0;
+	$complexiteit = 0;
+	$migratie = 0;
 	my $cmdb_id      = $$record{'cmdb_id'};
 	my $naam         = $$record{'naam'};
 	my $ci_categorie = $$record{'ci_categorie'};
