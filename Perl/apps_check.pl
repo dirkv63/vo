@@ -4,6 +4,20 @@ apps_check.pl - Verification of every Application Component (Toepassingomgeving)
 
 =head1 VERSION HISTORY
 
+version 1.1 30 July 2013 DV
+
+=over 4
+
+=item *
+
+Add Derived location information to the Application consolidated information.
+
+=item *
+
+Extend Perl library path to local /lib directory.
+
+=back
+
 version 1.0 26 July 2013 DV
 
 =over 4
@@ -42,25 +56,19 @@ No inline options are available. There is a properties\vo.ini file that contains
 # Variables
 ########### 
 
-my ($log, $dbh, $top_ci, $msg, @msgs, $connections, %states);
-my ($comp, $no_comp, $sw_cnt, $job_cnt);
-my @sw_types = ("ANDERE TOEP.COMP.INSTALL.",
-	            "DB TOEP.COMP-INSTALL.",
-				"RAPPORTEN",
-				"TOEP.COMP. COLLAB. SYST.",
-				"WEB TOEP.COMP-INSTALL.");
-my @job_types = ("JOB INSTALL. (ANDERE)",
-				"JOB INSTALL. (CRON)",
-				"JOB INSTALL. (CTRL-M)",
-				"JOB INSTALL. (WIN)",
-				"JOBCLUSTER INSTALL.");
-my @fields = qw (cmdb_id naam connections comp no_comp sw_cnt job_cnt msgstr 
+my ($log, $cfg, $dbh, $top_ci, $msg, @msgs, $connections, %states);
+my ($comp, $no_comp, $sw_cnt, $sw_cnt_bou, $job_cnt, $job_cnt_bou, %locations);
+my @fields = qw (cmdb_id naam connections comp no_comp sw_cnt sw_cnt_bou 
+				 job_cnt job_cnt_bou msgstr 
 				 status_not_defined status_buiten_gebruik status_in_gebruik
 				 status_in_stock status_nieuw status_not_niet_in_gebruik);
 
 #####
 # use
 #####
+
+use FindBin;
+use lib "$FindBin::Bin/lib";
 
 use warnings;			    # show warning messages
 use strict 'vars';
@@ -138,13 +146,22 @@ sub go_down($$) {
 		my $ci_type_target = $$arrayhdl{ci_type_target};
 		my $ci_categorie = $$arrayhdl{ci_categorie};
 		my $status = $$arrayhdl{status} || "not defined";
-		# Verify if this is a software component or a job.
+		# Did I find a Software Component or Job?
+		my @sw_types = $cfg->val("TYPES", "sw_type");
+		my @job_types = $cfg->val("TYPES", "job_type");
+		# First find the Software Components
 		if (grep {lc($_) eq lc($ci_type_target)} @sw_types) {
 			$sw_cnt++;
 			get_type($cmdb_id_target, "sw_type");
+			if (defined $locations{$cmdb_id_target}) {
+				$sw_cnt_bou++;
+			}
 		} elsif (grep {lc($_) eq lc($ci_type_target)} @job_types) {
 			$job_cnt++;
 			get_type($cmdb_id_target, "job_type");
+			if (defined $locations{$cmdb_id_target}) {
+				$job_cnt_bou++;
+			}
 		} else {
 			my $msg = "Unexpected Component Type $ci_type_target for application $cmdb_id";
 			push @msgs, $msg;
@@ -194,7 +211,7 @@ sub save_results {
 		push @$msgref, $msg;
 	}
 	my $msgstr = join ("\n", @$msgref);
-	my @fields = qw (cmdb_id naam connections comp no_comp sw_cnt job_cnt msgstr);
+	my @fields = qw (cmdb_id naam connections comp no_comp sw_cnt sw_cnt_bou job_cnt job_cnt_bou msgstr);
     my (@vals) = map { eval ("\$" . $_ ) } @fields;
 	# Also add status counters to fields and vals
 	foreach my $status (qw(status_not_defined status_buiten_gebruik status_in_gebruik
@@ -233,7 +250,7 @@ if (defined $options{"h"}) {
 }
 # Get ini file configuration
 my $ini = { project => "vo" };
-my $cfg = load_ini($ini);
+$cfg = load_ini($ini);
 # Start logging
 setup_logging;
 $log = get_logger();
@@ -268,7 +285,9 @@ $query = "CREATE TABLE IF NOT EXISTS `apps_checks` (
 			  `comp` int(11) DEFAULT NULL,
 			  `no_comp` int(11) DEFAULT NULL,
 			  `sw_cnt` int(11) DEFAULT NULL,
+			  `sw_cnt_bou` int(11) DEFAULT NULL,
 			  `job_cnt` int(11) DEFAULT NULL,
+			  `job_cnt_bou` int(11) DEFAULT NULL,
 			  `msgstr` text,
 			  `status_not_defined` int(11) DEFAULT NULL,
 			  `status_buiten_gebruik` int(11) DEFAULT NULL,
@@ -283,12 +302,26 @@ unless (do_stmt($dbh, $query)) {
 	exit_application(1);
 }
 
+$log->info("Get derived location information");
+$query  = "SELECT cmdb_id, locatie
+		   FROM derived_locations";
+my $ref = do_select($dbh, $query);
+unless (defined $ref) {
+	$log->fatal("Could not get derived location information");
+	exit_application(1);
+}
+foreach my $arrayhdl (@$ref) {
+	my $cmdb_id = $$arrayhdl{cmdb_id};
+	my $location = $$arrayhdl{locatie};
+	$locations{$cmdb_id} = $location;
+}
+
 $log->info("Investigating Applications");
 # Get all the SW Components
 $query = "SELECT `cmdb_id`, `naam`, `ci_categorie`, `ci_type`, status
 			 FROM component
 			 WHERE ci_class = 'toepassingcomponentinstallatie'";
-my $ref = do_select($dbh, $query);
+$ref = do_select($dbh, $query);
 foreach my $record (@$ref) {
 	undef @msgs;
 	undef %states;
@@ -296,7 +329,9 @@ foreach my $record (@$ref) {
 	$no_comp = 0;
 	$connections = 0;
 	$sw_cnt = 0;
+	$sw_cnt_bou = 0;
 	$job_cnt = 0;
+	$job_cnt_bou = 0;
 	my $cmdb_id      = $$record{'cmdb_id'};
 	my $naam         = $$record{'naam'};
 	my $ci_categorie = $$record{'ci_categorie'};

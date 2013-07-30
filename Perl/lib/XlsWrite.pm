@@ -146,8 +146,14 @@ sub write_table {
 	}
 
 	# Set the column widths
+	my $col_width;
 	for my $iC (0 .. $#$columns_ref) {
-		$worksheet->set_column($iC, $iC, $l->[$iC]);
+		if ($l->[$iC] < 60) {
+			$col_width = $l->[$iC];
+		} else {
+			$col_width = 60;
+		}
+		$worksheet->set_column($iC, $iC, $col_width);
 	}
 
 	unless ($workbook->close()) {

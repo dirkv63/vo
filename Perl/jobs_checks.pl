@@ -42,21 +42,20 @@ No inline options are available. There is a properties\vo.ini file that contains
 # Variables
 ########### 
 
-my ($log, $dbh, $top_ci, $msg, @msgs, $computer, $cluster, $connections, %states);
-my @ci_types = ("JOB INSTALL. (ANDERE)",
-				"JOB INSTALL. (CRON)",
-				"JOB INSTALL. (CTRL-M)",
-				"JOB INSTALL. (WIN)",
-				"JOBCLUSTER INSTALL.");
+my ($log, $cfg, $dbh, $top_ci, $msg, @msgs, $computer, $cluster, $connections, %states);
+my (%migratiekost, %complexiteitkost);
 my @fields = qw (sw_id sw_naam sw_type sw_categorie 
                  comp_id comp_naam comp_type comp_categorie 
-				 connections msgstr 
+				 connections migratie complexiteit msgstr 
 				 status_not_defined status_buiten_gebruik status_in_gebruik
 				 status_in_stock status_nieuw status_not_niet_in_gebruik);
 
 #####
 # use
 #####
+
+use FindBin;
+use lib "$FindBin::Bin/lib";
 
 use warnings;			    # show warning messages
 use strict 'vars';
@@ -210,6 +209,7 @@ sub get_ci {
 
 sub save_results {
 	my ($sw_id, $comp_id, $msgref) = @_;
+	my ($migratie, $complexiteit, $comp_type_key);
 	my ($sw_naam, $sw_type, $sw_categorie) = get_ci($sw_id);
 	my ($comp_naam, $comp_type, $comp_categorie) = get_ci($comp_id);
 	unless (defined $comp_id) {
@@ -217,6 +217,25 @@ sub save_results {
 		push @$msgref, $msg;
 	}
 	my $msgstr = join ("\n", @$msgref);
+	# If no computer type known, assume 'FYSIEKE COMPUTER'
+	if (defined $comp_type) {
+		$comp_type_key = $comp_type;
+	} else {
+		$comp_type_key = "FYSIEKE COMPUTER";
+	}
+	my $kostkey = $sw_type . $sw_categorie . $comp_type_key;
+	if (defined $migratiekost{$kostkey}) {
+		$migratie = $migratiekost{$kostkey};
+	} else {
+		$log->warn("Migratiekosten voor $sw_type $sw_categorie $comp_type niet gevonden");
+		$migratie = 0;
+	}
+	if (defined $complexiteitkost{$kostkey}) {
+		$complexiteit = $complexiteitkost{$kostkey};
+	} else {
+		$log->warn("Complexiteitkosten voor $sw_type $sw_categorie $comp_type niet gevonden");
+		$complexiteit = 0;
+	}
 	# Collect states
 	my ($status_not_defined, $status_buiten_gebruik, $status_in_gebruik,
 		$status_in_stock, $status_nieuw, $status_not_niet_in_gebruik);
@@ -280,7 +299,7 @@ if (defined $options{"h"}) {
 }
 # Get ini file configuration
 my $ini = { project => "vo" };
-my $cfg = load_ini($ini);
+$cfg = load_ini($ini);
 # Start logging
 setup_logging;
 $log = get_logger();
@@ -314,6 +333,8 @@ $query = "CREATE TABLE IF NOT EXISTS `job_checks` (
 			  `comp_type` varchar(255) DEFAULT NULL,
 			  `comp_categorie` varchar(255) DEFAULT NULL,
 			  `connections` int(11) DEFAULT NULL,
+			  `complexiteit` double DEFAULT NULL,
+			  `migratie` double DEFAULT NULL,
 			  `msgstr` text,
 			  `status_not_defined` int(11) DEFAULT NULL,
 			  `status_buiten_gebruik` int(11) DEFAULT NULL,
@@ -328,13 +349,41 @@ unless (do_stmt($dbh, $query)) {
 	exit_application(1);
 }
 
+# WHERE string for Software Components
+my @ci_types = $cfg->val("TYPES", "job_type");
+my $where_str = join (" OR ", map { "ci_type = ?" } @ci_types);
+
+# Collect Kostelementen for Software Components
+$query = "SELECT * 
+		  FROM kostelementen
+		  WHERE $where_str";
+my $ref = do_select($dbh, $query, @ci_types);
+unless (defined $ref) {
+	$log->fatal("Could not collect kostelementen, exiting...");
+	exit_application(1);
+}
+foreach my $record (@$ref) {
+	my $element      = $$record{element};
+	my $ci_type         = $$record{ci_type};
+	my $ci_categorie    = $$record{ci_categorie};
+	my $computertype = $$record{computertype};
+	my $waarde       = $$record{waarde};
+	my $kostkey      = $ci_type . $ci_categorie . $computertype;
+	if (trim(lc($element)) eq "migratie") {
+		$migratiekost{$kostkey} = $waarde;
+	} elsif (trim(lc($element)) eq "complexiteit") {
+		$complexiteitkost{$kostkey} = $waarde;
+	} else {
+		$log->warn("Element $element not known");
+	}
+}
+
 $log->info("Investigating SW Components");
 # Get all the SW Components
-my $where_str = join (" OR ", map { "ci_type = ?" } @ci_types);
 $query = "SELECT `cmdb_id`, `naam`, `ci_categorie`, `ci_type`
 			 FROM component
 			 WHERE ($where_str)";
-my $ref = do_select($dbh, $query, @ci_types);
+$ref = do_select($dbh, $query, @ci_types);
 foreach my $record (@$ref) {
 	undef @msgs;
 	undef $computer;
