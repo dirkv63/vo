@@ -45,7 +45,7 @@ No inline options are available. There is a properties\vo.ini file that contains
 ########### 
 
 my ($log, $cfg, $dbh, @msgs, $connections, %states);
-my ($sw_cnt, $job_cnt, $location);
+my ($sw_cnt, $job_cnt, %locations);
 my @fields = qw (cmdb_id naam ci_type ci_categorie locatie 
                  sw_cnt job_cnt 
 				 connections msgstr 
@@ -104,7 +104,7 @@ sub trim {
     return wantarray ? @out : $out[0];
 }
 
-sub go_up($$);
+sub go_up($$$);
 
 =pod
 
@@ -117,10 +117,10 @@ Don't go up to 'Operating Systeem' component.
 
 =cut
 
-sub go_up($$) {
-	my ($cmdb_id, $naam) = @_;
+sub go_up($$$) {
+	my ($cmdb_id, $naam, $location_comp) = @_;
 	my $query = "SELECT relation, cmdb_id_source, naam_source, ci_type_source,
-						ci_categorie, status, ci_class
+						ci_categorie, status, ci_class, locatie
 				 FROM relations, component
 				 WHERE cmdb_id_target = '$cmdb_id'
 				   AND cmdb_id_source = cmdb_id
@@ -141,8 +141,12 @@ sub go_up($$) {
 		my $ci_categorie = $$arrayhdl{ci_categorie};
 		my $status = $$arrayhdl{status} || "not defined";
 		my $ci_class = $$arrayhdl{ci_class};
+		# Update status count and number of connections
 		$states{$status}++;
 		$connections++;
+		if (defined($location_comp)) {
+			$locations{$cmdb_id_source} = $location_comp;
+		}
 		# Did I find a Software Component or Job?
 		my @sw_types = $cfg->val("TYPES", "sw_type");
 		my @job_types = $cfg->val("TYPES", "job_type");
@@ -158,7 +162,7 @@ sub go_up($$) {
 			 push @msgs, $msg;
 		} else {
 			 # Check next level
-			 go_up($cmdb_id_source, $naam_source);
+			 go_up($cmdb_id_source, $naam_source, $location_comp);
 
 		}
 	}
@@ -289,7 +293,6 @@ $query = "SELECT `cmdb_id`, `naam`, `ci_categorie`, `ci_type`, status, locatie
 my $ref = do_select($dbh, $query);
 foreach my $record (@$ref) {
 	undef @msgs;
-	undef $location;
 	undef %states;
 	$connections = 0;
 	$sw_cnt = 0;
@@ -300,11 +303,18 @@ foreach my $record (@$ref) {
 	my $ci_type      = $$record{'ci_type'};
 	my $status		 = $$record{'status'} || "not defined";
 	my $locatie		 = $$record{'locatie'} || "not defined";
+	if ($locatie eq "Boudewijn - Brussel/-1C Computerzaal") {
+		# All CIs that are related to Boudewijn have entry in derived_locations table.
+		$locations{$cmdb_id_source} = $location_comp;
+	} else {
+		undef $locatie;
+	}
 	$states{$status}++;
-	go_up($cmdb_id, $naam);
+	go_up($cmdb_id, $naam, $locatie);
 	save_results($cmdb_id, $naam, $ci_type, $ci_categorie, $locatie);
 }
 
+# Export the results to excel files
 $log->info("Export system_checks to excel");
 my $nr_lines = write_table($dbh, "system_checks",\@fields);
 if (defined $nr_lines) {
@@ -312,6 +322,35 @@ if (defined $nr_lines) {
 } else {
 	$log->fatal("Could not create excel report for table system_checks");
 	exit_application(1);
+}
+
+# Save the locations
+$log->info("Write the Derived Locations to Table");
+# Drop table system_checks if exists
+$query = "DROP TABLE IF EXISTS derived_locations";
+unless (do_stmt($dbh, $query)) {
+	$log->fatal("Could not drop table derived_locations, exiting...");
+	exit_application(1);
+}
+
+# CREATE table system_checks
+$query = "CREATE TABLE IF NOT EXISTS `derived_locations` (
+			  `ID` int(11) NOT NULL AUTO_INCREMENT,
+			  `cmdb_id` double DEFAULT NULL,
+			  `locatie` varchar(255) DEFAULT NULL,
+			  PRIMARY KEY (`ID`)
+		  ) ENGINE=MyISAM DEFAULT CHARSET=utf8";
+unless (do_stmt($dbh, $query)) {
+	$log->fatal("Could not create table derived_locations, exiting...");
+	exit_application(1);
+}
+while (my ($cmdb_id, $locatie) = each %locations) {
+	my @fields = qw (cmdb_id locatie);
+	my @vals = ($cmdb_id, $locatie);
+	unless (create_record($dbh, "derived_locations", \@fields, \@vals)) {
+		$log->fatal("Could not insert record into derived_locations");
+		exit_application(1);
+	}
 }
 
 exit_application(0);
