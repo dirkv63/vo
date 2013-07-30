@@ -55,6 +55,9 @@ my $filedir = "c:/temp/";
 # use
 #####
 
+use FindBin;
+use lib "$FindBin::Bin/lib";
+
 use warnings;			    # show warning messages
 use strict 'vars';
 use strict 'refs';
@@ -319,7 +322,7 @@ print DOT "}";
 
 close DOT;
 
-my $cmd = "dot -Tgif \"$filename\" -o \"$gifname\"";
+my $cmd = "dot -Tgif -Gcharset=latin1 \"$filename\" -o \"$gifname\"";
 system($cmd);
 exec("\"$gifname\""); 
 
