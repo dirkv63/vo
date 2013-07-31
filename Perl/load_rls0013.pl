@@ -14,7 +14,7 @@ Initial release.
 
 =head1 DESCRIPTION
 
-This script will load the report rls0013 into the table vo.rls0013_work.
+This script will load the report rls0013 into the table rls0013_work.
 
 =head1 SYNOPSIS
 

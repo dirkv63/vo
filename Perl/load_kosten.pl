@@ -1,6 +1,6 @@
 =head1 NAME
 
-load_kosten - This script will load the excel report net0900 into tables vo.net0900_in_cmdb_work and vo.net0900_not_in_cmdb_work.
+load_kosten - This script will load the kost elementen file.
 
 =head1 VERSION HISTORY
 

@@ -227,13 +227,13 @@ sub save_results {
 	if (defined $migratiekost{$kostkey}) {
 		$migratie = $migratiekost{$kostkey};
 	} else {
-		$log->warn("Migratiekosten voor $sw_type $sw_categorie $comp_type niet gevonden");
+		$log->trace("Migratiekosten voor $sw_type $sw_categorie $comp_type niet gevonden");
 		$migratie = 0;
 	}
 	if (defined $complexiteitkost{$kostkey}) {
 		$complexiteit = $complexiteitkost{$kostkey};
 	} else {
-		$log->warn("Complexiteitkosten voor $sw_type $sw_categorie $comp_type niet gevonden");
+		$log->trace("Complexiteitkosten voor $sw_type $sw_categorie $comp_type niet gevonden");
 		$complexiteit = 0;
 	}
 	# Collect states
@@ -373,8 +373,6 @@ foreach my $record (@$ref) {
 		$migratiekost{$kostkey} = $waarde;
 	} elsif (trim(lc($element)) eq "complexiteit") {
 		$complexiteitkost{$kostkey} = $waarde;
-	} else {
-		$log->warn("Element $element not known");
 	}
 }
 

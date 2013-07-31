@@ -1,0 +1,437 @@
+; Wed Jul 31 13:00:33 CEST 2013
+; 
+;+ (version "3.4.8")
+;+ (build "Build 629")
+
+([ScriptDoc_Class0] of  Container
+
+	(description "Datawarehouse repository of reports.")
+	(has_artifacts
+		[ScriptDoc_Class2]
+		[ScriptDoc_Class14]
+		[ScriptDoc_Class20])
+	(name "Datawarehouse"))
+
+([ScriptDoc_Class1] of  Script
+
+	(description "This script will load the report cmwbt0011 into the table cmwbt0011_work. The script process_cmwbt0011.pl then needs to convert the table into cmwbt0011 for further processing.")
+	(is_called_by [ScriptDoc_Class7])
+	(name "load_cmwbt0011.pl")
+	(reads_from [ScriptDoc_Class2])
+	(runs_before [ScriptDoc_Class5])
+	(script_type perl)
+	(writes_to [ScriptDoc_Class3]))
+
+([ScriptDoc_Class10] of  Script
+
+	(description "This script will get the relations from the table CMWBT0011_OR into the relations table.")
+	(is_called_by [ScriptDoc_Class7])
+	(name "get_rels_cmwbt0011.pl")
+	(reads_from [ScriptDoc_Class6])
+	(runs_after [ScriptDoc_Class8])
+	(script_type perl)
+	(writes_to [ScriptDoc_Class11]))
+
+([ScriptDoc_Class11] of  Artifact
+
+	(description "This table contains relations between components. There are four different type of relations: 'heeft component', 'is afhankelijk van', 'maakt gebruik van', 'netwerk connectie'.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from
+		[ScriptDoc_Class33]
+		[ScriptDoc_Class37]
+		[ScriptDoc_Class41]
+		[ScriptDoc_Class46])
+	(is_written_by
+		[ScriptDoc_Class10]
+		[ScriptDoc_Class25])
+	(name "relations"))
+
+([ScriptDoc_Class12] of  Script
+
+	(calls
+		[ScriptDoc_Class13]
+		[ScriptDoc_Class16])
+	(description "Groups the rls0013 report processing to get the EOSL information.")
+	(name "rls0013.bat")
+	(script_type bat))
+
+([ScriptDoc_Class13] of  Script
+
+	(description "This script will load the report rls0013 into the table rls0013_work.")
+	(is_called_by [ScriptDoc_Class12])
+	(name "load_rls0013.pl")
+	(reads_from [ScriptDoc_Class14])
+	(runs_before [ScriptDoc_Class16])
+	(script_type perl)
+	(writes_to [ScriptDoc_Class15]))
+
+([ScriptDoc_Class14] of  Artifact
+
+	(description "Excel report containing EOSL information.")
+	(is_part_of [ScriptDoc_Class0])
+	(is_read_from [ScriptDoc_Class13])
+	(name "RLS0013.xls"))
+
+([ScriptDoc_Class15] of  Artifact
+
+	(description "'Raw' RLS0013 information.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from [ScriptDoc_Class16])
+	(is_written_by [ScriptDoc_Class13])
+	(name "rls0013_work"))
+
+([ScriptDoc_Class16] of  Script
+
+	(description "This script will read the report RLS0013 and add the EOSL information to the eosl table.")
+	(is_called_by [ScriptDoc_Class12])
+	(name "process_eosl.pl")
+	(reads_from [ScriptDoc_Class15])
+	(runs_after [ScriptDoc_Class13])
+	(script_type perl)
+	(writes_to [ScriptDoc_Class17]))
+
+([ScriptDoc_Class17] of  Artifact
+
+	(description "Table containing the EOSL information per CI.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_written_by [ScriptDoc_Class16])
+	(name "eosl"))
+
+([ScriptDoc_Class18] of  Script
+
+	(calls
+		[ScriptDoc_Class19]
+		[ScriptDoc_Class22]
+		[ScriptDoc_Class27]
+		[ScriptDoc_Class25])
+	(description "TO DO!\nConsolodiation of the cmwsi0152 information to get the different types of relations into the relation table.")
+	(name "cmwsi0520.bat")
+	(script_type bat))
+
+([ScriptDoc_Class19] of  Script
+
+	(description "Loads the CMWSI0520 report from Datawarehouse into the MySQL for further processing.")
+	(is_called_by [ScriptDoc_Class18])
+	(name "load_cmwsi0520.pl")
+	(reads_from [ScriptDoc_Class20])
+	(runs_before [ScriptDoc_Class22])
+	(script_type perl)
+	(writes_to [ScriptDoc_Class21]))
+
+([ScriptDoc_Class2] of  Artifact
+
+	(description "Report from the 'Bedrijfstoepassingen' with all related components.\nCMWBT0011_OR_Inventaris HW-SW configuratie per toepassingomgeving.xls")
+	(is_part_of [ScriptDoc_Class0])
+	(is_read_from [ScriptDoc_Class1])
+	(name "CMWBT0011_OR.xls"))
+
+([ScriptDoc_Class20] of  Artifact
+
+	(description "Impact Report from Datawarehouse, allows to read the different relation types.")
+	(is_part_of [ScriptDoc_Class0])
+	(is_read_from [ScriptDoc_Class19])
+	(name "CMWSI0520.xls"))
+
+([ScriptDoc_Class21] of  Artifact
+
+	(description "'Raw' information from the CMWSI0520 report in MySQL.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from [ScriptDoc_Class22])
+	(is_written_by [ScriptDoc_Class19])
+	(name "cmwsi0520_work"))
+
+([ScriptDoc_Class22] of  Script
+
+	(description "TO DO.\nConvert the cmwsi0520_work information into a table ready for further work by renaming the required columns.")
+	(is_called_by [ScriptDoc_Class18])
+	(name "process_cmwsi0520.pl")
+	(reads_from [ScriptDoc_Class21])
+	(runs_after [ScriptDoc_Class19])
+	(runs_before [ScriptDoc_Class25])
+	(script_type perl)
+	(writes_to [ScriptDoc_Class26]))
+
+([ScriptDoc_Class25] of  Script
+
+	(description "TO DO.\nUpdate relation types from relations using the information from cmwsi0520")
+	(is_called_by [ScriptDoc_Class18])
+	(name "update_relations.pl")
+	(reads_from [ScriptDoc_Class28])
+	(runs_after [ScriptDoc_Class22])
+	(script_type perl)
+	(writes_to [ScriptDoc_Class11]))
+
+([ScriptDoc_Class26] of  Artifact
+
+	(description "cmwsi0520 information into MySQL ready for further processing.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from [ScriptDoc_Class27])
+	(is_written_by [ScriptDoc_Class22])
+	(name "cmwsi0520"))
+
+([ScriptDoc_Class27] of  Script
+
+	(description "Extract Relation information from cmwsi0520 table. This is a preparation for the update of the relation table, allowing to get completeness information.")
+	(is_called_by [ScriptDoc_Class18])
+	(name "extract_cmwsi0520_relations.pl")
+	(reads_from [ScriptDoc_Class26])
+	(script_type perl)
+	(writes_to [ScriptDoc_Class28]))
+
+([ScriptDoc_Class28] of  Artifact
+
+	(description "Relation information extracted from cmwsi0520.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from [ScriptDoc_Class25])
+	(is_written_by [ScriptDoc_Class27])
+	(name "cmwsi0520_relations"))
+
+([ScriptDoc_Class29] of  Artifact
+
+	(description "Table containing the different kost elementen that are relevant for the data center migration.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from
+		[ScriptDoc_Class32]
+		[ScriptDoc_Class33]
+		[ScriptDoc_Class37])
+	(is_written_by [ScriptDoc_Class30])
+	(name "kostelementen"))
+
+([ScriptDoc_Class3] of  Artifact
+
+	(description "'Raw' load from the cmwbt0011_OR datawarehouse report. Columns may need to be renamed.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from [ScriptDoc_Class5])
+	(is_written_by [ScriptDoc_Class1])
+	(name "cmwbt0011_work"))
+
+([ScriptDoc_Class30] of  Script
+
+	(description "Script to load the kostelementen excel into the MySQL table.")
+	(name "load_kosten.pl")
+	(reads_from [ScriptDoc_Class31])
+	(script_type perl)
+	(writes_to [ScriptDoc_Class29]))
+
+([ScriptDoc_Class31] of  Artifact
+
+	(description "Excel file for the user to manipulate values in the kostelementen table.")
+	(is_part_of [ScriptDoc_Class36])
+	(is_read_from [ScriptDoc_Class30])
+	(is_written_by [ScriptDoc_Class32])
+	(name "KostElementen.xls"))
+
+([ScriptDoc_Class32] of  Script
+
+	(description "Write kostelementen table into an excel spreadsheet to allow the user easy manipulation of the data.")
+	(name "dump_kosten.pl")
+	(reads_from [ScriptDoc_Class29])
+	(script_type perl)
+	(writes_to [ScriptDoc_Class31]))
+
+([ScriptDoc_Class33] of  Script
+
+	(description "This script will verify assumptions for the Software Components and consolidate information per component into the table sw_checks.\nThe assumption is that each Software Component runs on a (Physical or Virtual) computer. The script will find the first computer, and remembers if it is a Physical or Virtual computer. If no computer can be found, a message is attached to the Software Component. \nVerification is done by walking down the 'afhankelijk van' relations, starting from Software Component types.")
+	(name "sw_component_checks.pl")
+	(reads_from
+		[ScriptDoc_Class9]
+		[ScriptDoc_Class11]
+		[ScriptDoc_Class29])
+	(script_type perl)
+	(writes_to
+		[ScriptDoc_Class34]
+		[ScriptDoc_Class35]))
+
+([ScriptDoc_Class34] of  Artifact
+
+	(description "Software Component Consolidation information. Contains status information, computer on which the Component is running, (potential) complexity and migratie cost and status counter for the 'down' components.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from [ScriptDoc_Class46])
+	(is_written_by [ScriptDoc_Class33])
+	(name "sw_checks"))
+
+([ScriptDoc_Class35] of  Artifact
+
+	(description "Dump from the sw_checks table for user processing")
+	(is_part_of [ScriptDoc_Class36])
+	(is_written_by [ScriptDoc_Class33])
+	(name "ToepassingComponentInstallatieChecks.xls"))
+
+([ScriptDoc_Class36] of  Container
+
+	(description "Collection of User-Deliverable files.")
+	(has_artifacts
+		[ScriptDoc_Class35]
+		[ScriptDoc_Class31]
+		[ScriptDoc_Class40]
+		[ScriptDoc_Class45]
+		[ScriptDoc_Class48])
+	(name "Deliverables"))
+
+([ScriptDoc_Class37] of  Script
+
+	(description "This script will verify assumptions for the Jobs and consolidate information per component into the table job_checks.\nThe assumption is that each Job runs on a (Physical or Virtual) computer. The script will find the first computer, and remembers if it is a Physical or Virtual computer. If no computer can be found, a message is attached to the Software Component. \nVerification is done by walking down the 'afhankelijk van' relations, starting from Job Component types.\nCurrently sw_configuration_checks.pl and this script are very similar, but the expectation is that behaviour for both components may deviate.")
+	(name "jobs_checks.pl")
+	(reads_from
+		[ScriptDoc_Class9]
+		[ScriptDoc_Class11]
+		[ScriptDoc_Class29])
+	(writes_to
+		[ScriptDoc_Class38]
+		[ScriptDoc_Class40]))
+
+([ScriptDoc_Class38] of  Artifact
+
+	(description "Job Component Consolidation information. Contains status information, computer on which the Component is running, (potential) complexity and migratie cost and status counter for the 'down' components.")
+	(is_read_from [ScriptDoc_Class46])
+	(is_written_by [ScriptDoc_Class37])
+	(name "job_checks"))
+
+([ScriptDoc_Class39] of  Artifact
+)
+
+([ScriptDoc_Class4] of  Container
+
+	(description "MySQL Database containing all vo datacenter migration related tables.")
+	(has_artifacts
+		[ScriptDoc_Class3]
+		[ScriptDoc_Class6]
+		[ScriptDoc_Class9]
+		[ScriptDoc_Class11]
+		[ScriptDoc_Class15]
+		[ScriptDoc_Class17]
+		[ScriptDoc_Class21]
+		[ScriptDoc_Class26]
+		[ScriptDoc_Class28]
+		[ScriptDoc_Class29]
+		[ScriptDoc_Class34]
+		[ScriptDoc_Class42]
+		[ScriptDoc_Class47]
+		[ScriptDoc_Class43])
+	(name "vo"))
+
+([ScriptDoc_Class40] of  Artifact
+
+	(description "Dump of the Job Checks information.")
+	(is_part_of [ScriptDoc_Class36])
+	(is_written_by [ScriptDoc_Class37])
+	(name "JobChecks.xls"))
+
+([ScriptDoc_Class41] of  Script
+
+	(description "There are a number of assumptions for the Computer Systems. This script will verify and document the assumptions.\nEach Computer must be connected to a Software Component. The relation between Software Components and the Applications is checked in another script.\nEach Physical Computer has a location. This location is upwards propagated to all components on the path, up till Software / Job Component.")
+	(name "system_checks.pl")
+	(reads_from
+		[ScriptDoc_Class9]
+		[ScriptDoc_Class11])
+	(script_type perl)
+	(writes_to
+		[ScriptDoc_Class42]
+		[ScriptDoc_Class43]
+		[ScriptDoc_Class45]))
+
+([ScriptDoc_Class42] of  Artifact
+
+	(description "Consolidates counters per physical server. Consolidates status and error messages per server.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_written_by [ScriptDoc_Class41])
+	(name "system_checks"))
+
+([ScriptDoc_Class43] of  Artifact
+
+	(description "Location for the Component upwards propagated from the physical server. This has a value if the component has at least one link to a physical computer in the Boudewijn.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from [ScriptDoc_Class46])
+	(is_written_by [ScriptDoc_Class41])
+	(name "derived_locations"))
+
+([ScriptDoc_Class45] of  Artifact
+
+	(description "Dump from the system_checks table for the user.")
+	(is_part_of [ScriptDoc_Class36])
+	(is_written_by [ScriptDoc_Class41])
+	(name "ComputerChecks.xls"))
+
+([ScriptDoc_Class46] of  Script
+
+	(description "An application is build up of components (Toepassingcomponentinstallatie) and / or Jobs. These are the building blocks of the application. For each application find the building blocks and read the component or job information from their tables. \n/SEAdd potential migration and complexity costs for the application. For each component that is in Boudewijn, add the migration cost. If at least one component in Boudewijn is found, add sum of all complexity costs.")
+	(name "apps_check.pl")
+	(reads_from
+		[ScriptDoc_Class9]
+		[ScriptDoc_Class11]
+		[ScriptDoc_Class43]
+		[ScriptDoc_Class34]
+		[ScriptDoc_Class38])
+	(script_type perl)
+	(writes_to
+		[ScriptDoc_Class47]
+		[ScriptDoc_Class48]))
+
+([ScriptDoc_Class47] of  Artifact
+
+	(description "Consolidates application information, including migration and complexity information.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_written_by [ScriptDoc_Class46])
+	(name "apps_checks"))
+
+([ScriptDoc_Class48] of  Artifact
+
+	(description "Dump from the application information.")
+	(is_part_of [ScriptDoc_Class36])
+	(is_written_by [ScriptDoc_Class46])
+	(name "ApplicationChecks.xls"))
+
+([ScriptDoc_Class5] of  Script
+
+	(description "Creates the table cmwbt0011 from table cmwbt0011_work, by adding meaningful column names.")
+	(is_called_by [ScriptDoc_Class7])
+	(name "process_cmwbt0011.pl")
+	(reads_from [ScriptDoc_Class3])
+	(runs_after [ScriptDoc_Class1])
+	(runs_before [ScriptDoc_Class8])
+	(script_type perl)
+	(writes_to [ScriptDoc_Class6]))
+
+([ScriptDoc_Class6] of  Artifact
+
+	(description "cmwbt0011 report data available for extracting into components and relation information.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from
+		[ScriptDoc_Class8]
+		[ScriptDoc_Class10])
+	(is_written_by [ScriptDoc_Class5])
+	(name "cmwbt0011"))
+
+([ScriptDoc_Class7] of  Script
+
+	(calls
+		[ScriptDoc_Class1]
+		[ScriptDoc_Class5]
+		[ScriptDoc_Class8]
+		[ScriptDoc_Class10])
+	(description "Groups the cmwbt0011 processing to get the component and relation information.")
+	(name "cmwbt0011.bat")
+	(script_type bat))
+
+([ScriptDoc_Class8] of  Script
+
+	(description "This script will convert cmwbt0011 data into unique components. The component types are 'Bedrijfstoepassingen', 'Toepassingcomponentinstallaties' and all others.")
+	(is_called_by [ScriptDoc_Class7])
+	(name "get_data_cmwbt0011.pl")
+	(reads_from [ScriptDoc_Class6])
+	(runs_after [ScriptDoc_Class5])
+	(runs_before [ScriptDoc_Class10])
+	(script_type perl)
+	(writes_to [ScriptDoc_Class9]))
+
+([ScriptDoc_Class9] of  Artifact
+
+	(description "Table containing all components and attributes from the cmwbt0011 related to the component.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from
+		[ScriptDoc_Class33]
+		[ScriptDoc_Class37]
+		[ScriptDoc_Class41]
+		[ScriptDoc_Class46])
+	(is_written_by [ScriptDoc_Class8])
+	(name "component"))

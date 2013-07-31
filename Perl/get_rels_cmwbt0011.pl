@@ -24,7 +24,7 @@ Initial release.
 
 =head1 DESCRIPTION
 
-This script will get the relations from the table CMWBT0011_OR.
+This script will get the relations from the table CMWBT0011_OR into the relations table.
 
 =head1 SYNOPSIS
 

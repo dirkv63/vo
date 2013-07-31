@@ -3,3 +3,6 @@
 ############
 *.swp
 *.zip
+*.dot
+*.dot-input
+*.gif

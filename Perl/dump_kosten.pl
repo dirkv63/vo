@@ -41,7 +41,7 @@ No options have been specified.
 ########### 
 
 my ($log, $cfg, $dbh);
-my @fields = qw( element type categorie computertype waarde);
+my @fields = qw( element ci_type ci_categorie computertype waarde);
 
 #####
 # use

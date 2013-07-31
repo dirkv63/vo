@@ -30,7 +30,7 @@ Initial release.
 
 =head1 DESCRIPTION
 
-This script will read the report RLS0013 on CMDB ID and add the EOSL dates to the vo.component table.
+This script will read the report RLS0013 and add the EOSL information to the eosl table.
 
 =head1 SYNOPSIS
 

@@ -59,8 +59,10 @@ No inline options are available. There is a properties\vo.ini file that contains
 my ($log, $cfg, $dbh, $top_ci, $msg, @msgs, $connections, %states);
 my ($comp, $no_comp, $sw_cnt, $sw_cnt_bou, $job_cnt, $job_cnt_bou, %locations);
 my ($complexiteit, $migratie);
-my @fields = qw (cmdb_id naam connections comp no_comp sw_cnt sw_cnt_bou 
-				 job_cnt job_cnt_bou complexiteit migratie totale_kost msgstr 
+my @fields = qw (cmdb_id naam dienstentype eigenaar_beleidsdomein 
+		         eigenaar_entiteit fin_beleidsdomein fin_entiteit
+				 connections comp no_comp sw_cnt sw_cnt_bou 
+				 complexiteit migratie totale_kost msgstr 
 				 status_not_defined status_buiten_gebruik status_in_gebruik
 				 status_in_stock status_nieuw status_not_niet_in_gebruik);
 
@@ -123,6 +125,8 @@ sub trim {
 =head2 Check Application
 
 An application is build up of components (Toepassingcomponentinstallatie) and / or Jobs. These are the building blocks of the application. For each application find the building blocks and read the component or job information from their tables. 
+
+Add potential migration and complexity costs for the application. For each component that is in Boudewijn, add the migration cost. If at least one component in Boudewijn is found, add sum of all complexity costs.
 
 An application needs to be build up of its components. There should be no need for recursive traveling down the relation tree.
 
@@ -206,19 +210,24 @@ sub handle_component {
 }
 
 sub save_results {
-	my ($cmdb_id, $naam, $msgref) = @_;
+	my ($cmdb_id, $naam, $dienstentype, $eigenaar_beleidsdomein, 
+        $eigenaar_entiteit, $fin_beleidsdomein, $fin_entiteit,$msgref) = @_;
 	if ($comp == 0) {
 		$msg = "Application cannot be linked to a Computer";
 		push @$msgref, $msg;
 	}
 	my $msgstr = join ("\n", @$msgref);
 	# Set migratie & complexiteit kost to 0 if not related to Boudewijn Computerzaal
-	if (($sw_cnt_bou == 0) && ($job_cnt_bou == 0)) {
+#	if (($sw_cnt_bou == 0) && ($job_cnt_bou == 0)) {
+	if ($sw_cnt_bou == 0) {
 		$complexiteit = 0;
 		$migratie = 0;
 	}
 	my $totale_kost = $complexiteit + $migratie;
-	my @fields = qw (cmdb_id naam connections comp no_comp sw_cnt sw_cnt_bou job_cnt job_cnt_bou complexiteit migratie totale_kost msgstr);
+	my @fields = qw (cmdb_id naam dienstentype eigenaar_beleidsdomein 
+		         eigenaar_entiteit fin_beleidsdomein fin_entiteit
+				 connections comp no_comp sw_cnt sw_cnt_bou job_cnt 
+				 job_cnt_bou complexiteit migratie totale_kost msgstr);
     my (@vals) = map { eval ("\$" . $_ ) } @fields;
 	# Also add status counters to fields and vals
 	foreach my $status (qw(status_not_defined status_buiten_gebruik status_in_gebruik
@@ -288,6 +297,11 @@ $query = "CREATE TABLE IF NOT EXISTS `apps_checks` (
 			  `ID` int(11) NOT NULL AUTO_INCREMENT,
 			  `cmdb_id` double DEFAULT NULL,
 			  `naam` varchar(255) DEFAULT NULL,
+			  `dienstentype` varchar(255) DEFAULT NULL,
+			  `eigenaar_beleidsdomein` varchar(255) DEFAULT NULL,
+			  `eigenaar_entiteit` varchar(255) DEFAULT NULL,
+			  `fin_beleidsdomein` varchar(255) DEFAULT NULL,
+			  `fin_entiteit` varchar(255) DEFAULT NULL,
 			  `connections` int(11) DEFAULT NULL,
 			  `comp` int(11) DEFAULT NULL,
 			  `no_comp` int(11) DEFAULT NULL,
@@ -328,7 +342,7 @@ foreach my $arrayhdl (@$ref) {
 
 $log->info("Investigating Applications");
 # Get all the SW Components
-$query = "SELECT `cmdb_id`, `naam`, `ci_categorie`, `ci_type`, status
+$query = "SELECT *
 			 FROM component
 			 WHERE ci_class = 'toepassingcomponentinstallatie'";
 $ref = do_select($dbh, $query);
@@ -349,10 +363,16 @@ foreach my $record (@$ref) {
 	my $ci_categorie = $$record{'ci_categorie'};
 	my $ci_type      = $$record{'ci_type'};
 	my $status		 = $$record{'status'} || "not defined";
+	my $dienstentype = $$record{'dienstentype'};
+	my $eigenaar_beleidsdomein = $$record{'eigenaar_beleidsdomein'};
+	my $eigenaar_entiteit = $$record{'eigenaar_entiteit'};
+	my $fin_beleidsdomein = $$record{'fin_beleidsdomein'};
+	my $fin_entiteit = $$record{'fin_entiteit'};
 	$states{$status}++;
 	$top_ci          = $cmdb_id;
 	go_down($cmdb_id, $naam);
-	save_results($top_ci, $naam, \@msgs);
+	save_results($top_ci, $naam, $dienstentype, $eigenaar_beleidsdomein, 
+		         $eigenaar_entiteit, $fin_beleidsdomein, $fin_entiteit,\@msgs);
 }
 
 $log->info("Export apps_checks to excel");
@@ -361,6 +381,24 @@ if (defined $nr_lines) {
 	$log->info("$nr_lines exported into excel file");
 } else {
 	$log->fatal("Could not create excel report for table apps_checks");
+	exit_application(1);
+}
+
+# Now get excel with Applications to be migrated only
+$query = "CREATE TEMPORARY TABLE apps_migrate
+		  SELECT * FROM apps_checks
+		  WHERE totale_kost > 0";
+unless (do_stmt($dbh, $query)) {
+	$log->fatal("Could not create migration report");
+	exit_application(1);
+}
+
+$log->info("Export apps_migrate to excel");
+my $nr_lines = write_table($dbh, "apps_migrate",\@fields);
+if (defined $nr_lines) {
+	$log->info("$nr_lines exported into excel file");
+} else {
+	$log->fatal("Could not create excel report for table apps_migrate");
 	exit_application(1);
 }
 

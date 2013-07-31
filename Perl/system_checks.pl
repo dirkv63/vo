@@ -20,6 +20,8 @@ There are a number of assumptions for the Computer Systems. This script will ver
 
 Each Computer must be connected to a Software Component. The relation between Software Components and the Applications is checked in another script.
 
+Each Physical Computer has a location. This location is upwards propagated to all components on the path, up till Software / Job Component.
+
 =head1 SYNOPSIS
 
  system_checks.pl

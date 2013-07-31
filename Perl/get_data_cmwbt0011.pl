@@ -16,7 +16,7 @@ Initial release.
 
 =head1 DESCRIPTION
 
-This script will convert CMWBT0011_OR_Inventaris HW-SW configuratie per toepassingscomponent into unique components.
+This script will convert cmwbt0011 data into unique components. The component types are 'Bedrijfstoepassingen', 'Toepassingcomponentinstallaties' and all others.
 
 =head1 SYNOPSIS
 
@@ -96,16 +96,24 @@ sub trim {
 
 sub handle_toepassingomgeving($) {
 	my ($tpo_arrayref) = @_;
-	foreach my $tpo_arr (@$tpo_arrayref) {
+	foreach my $ref (@$tpo_arrayref) {
 		my $ci_class = "toepassingcomponentinstallatie";
-		my $naam = $$tpo_arr{Toepassingomgeving};
-		my $status = $$tpo_arr{'Status toepassingomgeving'};
-		my $cmdb_id = $$tpo_arr{'CMDB referentie omgeving'};
-		my $versie = $$tpo_arr{'Versie'};
-		my $omgeving = $$tpo_arr{'Type omgeving'};
-		my $datum_in_gebruik = $$tpo_arr{'Datum in gebruik'};
-		my $datum_buiten_gebruik = $$tpo_arr{'Datum buiten gebruik'};
-		my @fields = qw (ci_class naam status cmdb_id versie omgeving datum_in_gebruik datum_buiten_gebruik);
+		my $naam = $$ref{Toepassingomgeving};
+		my $status = $$ref{'Status toepassingomgeving'};
+		my $cmdb_id = $$ref{'CMDB referentie omgeving'};
+		my $versie = $$ref{'Versie'};
+		my $omgeving = $$ref{'Type omgeving'};
+		my $datum_in_gebruik = $$ref{'Datum in gebruik'};
+		my $datum_buiten_gebruik = $$ref{'Datum buiten gebruik'};
+		my $dienstentype = $$ref{'Dienstentype'};
+		my $eigenaar_beleidsdomein = $$ref{'Eigenaar (Beleidsdomein)'};
+		my $eigenaar_entiteit = $$ref{'Eigenaar (entiteit)'};
+		my $fin_beleidsdomein = $$ref{'Financieel beheerder (Beleidsdomein)'};
+		my $fin_entiteit = $$ref{'Financieel beheerder (entiteit)'};
+		my @fields = qw (ci_class naam status cmdb_id versie omgeving datum_in_gebruik			
+						 datum_buiten_gebruik dienstentype
+						 vo_applicatiebeheerder eigenaar_beleidsdomein
+						 eigenaar_entiteit fin_beleidsdomein fin_entiteit);
 		my (@vals) = map { eval ("\$" . $_ ) } @fields;
 		unless (create_record($dbh, "component", \@fields, \@vals)) {
 			$log->fatal("Could not create record for $ci_class $cmdb_id");
@@ -116,16 +124,16 @@ sub handle_toepassingomgeving($) {
 
 sub handle_bedrijfstoepassing($) {
 	my ($bd_arrayref) = @_;
-	foreach my $bd_array (@$bd_arrayref) {
+	foreach my $ref (@$bd_arrayref) {
 		my $ci_class = "bedrijfstoepassing";
-		my $cmdb_id = $$bd_array{'CMDB referentie bedrijfstoepassing'} || "";
-		my $naam = $$bd_array{'Naam bedrijfstoepassing'} || "";
-		my $bt_nummer = $$bd_array{'Nummer bedrijfstoepassing'} || "";
-		my $so_toepassingsmanager = $$bd_array{'SO Toepassingsmanager(s)'};
-		my $vo_applicatiebeheerder = $$bd_array{'VO Applicatiebeheerder(s)'};
+		my $cmdb_id = $$ref{'CMDB referentie bedrijfstoepassing'} || "";
+		my $naam = $$ref{'Naam bedrijfstoepassing'} || "";
+		my $bt_nummer = $$ref{'Nummer bedrijfstoepassing'} || "";
+		my $so_toepassingsmanager = $$ref{'SO Toepassingsmanager(s)'};
+		my $vo_applicatiebeheerder = $$ref{'VO Applicatiebeheerder(s)'};
 		# Now make CMDB ID unique
 		$cmdb_id = $cmdb_id + 1000000;
-		my @fields = qw (ci_class cmdb_id naam bt_nummer so_toepassingsmanager vo_applicatiebeheerder);
+		my @fields = qw (ci_class cmdb_id naam bt_nummer so_toepassingsmanager);
 		my (@vals) = map { eval ("\$" . $_ ) } @fields;
 		unless (create_record($dbh, "component", \@fields, \@vals)) {
 			$log->fatal("Could not create record for $ci_class $cmdb_id");
@@ -136,20 +144,20 @@ sub handle_bedrijfstoepassing($) {
 
 sub handle_component($) {
 	my ($comp_arrayref) = @_;
-	foreach my $comp_array (@$comp_arrayref) {
-		my $ci_categorie = $$comp_array{'CI categorie'} || "";
-		my $ci_type = $$comp_array{'CI type'} || "";
-		my $cmdb_id = $$comp_array{'CI CMDB referentie'} || "";
-		my $naam = $$comp_array{'CI systeemnaam'} || "";
-		my $status = $$comp_array{'CI status'} || "";
-		my $eigenaar_entiteit = $$comp_array{'CI eigenaar'} || "";
-		my $producent = $$comp_array{'Producent'} || "";
-		my $product = $$comp_array{'Product'} || "";
-		my $versie = $$comp_array{'ci_versie'} || "";
-		my $os = $$comp_array{'OS'} || "";
-		my $os_versie = $$comp_array{'Versie OS'} || "";
-		my $hw_sw_flag = $$comp_array{'HW/SW'} || "";
-		my $locatie = $$comp_array{'Locatie'} || "";
+	foreach my $ref (@$comp_arrayref) {
+		my $ci_categorie = $$ref{'CI categorie'} || "";
+		my $ci_type = $$ref{'CI type'} || "";
+		my $cmdb_id = $$ref{'CI CMDB referentie'} || "";
+		my $naam = $$ref{'CI systeemnaam'} || "";
+		my $status = $$ref{'CI status'} || "";
+		my $eigenaar_entiteit = $$ref{'CI eigenaar'} || "";
+		my $producent = $$ref{'Producent'} || "";
+		my $product = $$ref{'Product'} || "";
+		my $versie = $$ref{'ci_versie'} || "";
+		my $os = $$ref{'OS'} || "";
+		my $os_versie = $$ref{'Versie OS'} || "";
+		my $hw_sw_flag = $$ref{'HW/SW'} || "";
+		my $locatie = $$ref{'Locatie'} || "";
 		my @fields = qw (ci_categorie ci_type cmdb_id naam status
 						eigenaar_entiteit producent product versie os os_versie
 						hw_sw_flag locatie);
@@ -251,7 +259,9 @@ unless (do_stmt($dbh, $query)) {
 $log->info("Get data for Toepassingomgeving");
 $query = "SELECT DISTINCT  `Toepassingomgeving` ,  `Status toepassingomgeving` ,  
 				`CMDB referentie omgeving` ,  `Versie` , `Type omgeving` ,  
-				`Datum in gebruik` ,  `Datum buiten gebruik` 
+				`Datum in gebruik` ,  `Datum buiten gebruik`, `Dienstentype`,
+				`Financieel beheerder (Beleidsdomein)`, `Financieel beheerder (entiteit)`,
+				`Eigenaar (Beleidsdomein)`, `Eigenaar (entiteit)`
 		  FROM  `cmwbt0011`
 		  WHERE `CMDB referentie omgeving` > 0";
 my $ref = do_select($dbh, $query);
@@ -264,7 +274,7 @@ handle_toepassingomgeving($ref);
 $log->info("Get data for Bedrijfstoepassing");
 $query = "SELECT distinct `CMDB referentie bedrijfstoepassing`, `Naam bedrijfstoepassing`, 
 				 `Nummer bedrijfstoepassing`, `SO Toepassingsmanager(s)`,
-				 `VO Applicatiebeheerder(s)`
+				 `VO Applicatiebeheerder(s)`  
 				 FROM `cmwbt0011` WHERE length( `Naam bedrijfstoepassing`) > 0";
 $ref = do_select($dbh, $query);
 unless (defined $ref) {

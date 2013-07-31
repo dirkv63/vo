@@ -14,7 +14,7 @@ Initial release.
 
 =head1 DESCRIPTION
 
-This script will load the report cmwsi0520 into the table vo.cmwsi0520_work. The script process_cmwsi0520.pl then needs to convert the table into vo.cmwsi0520_work for further processing.
+This script will load the report cmwsi0520 into the table cmwsi0520_work. The script process_cmwsi0520.pl then needs to convert the table into cmwsi0520 for further processing.
 
 =head1 SYNOPSIS
 

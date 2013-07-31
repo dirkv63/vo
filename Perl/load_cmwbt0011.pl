@@ -14,7 +14,7 @@ Initial release.
 
 =head1 DESCRIPTION
 
-This script will load the report cmwbt0011 into the table vo.cmwbt0011_work. The script process_cmwbt0011.pl then needs to convert the table into vo.cmwbt0011 for further processing.
+This script will load the report cmwbt0011 into the table cmwbt0011_work. The script process_cmwbt0011.pl then needs to convert the table into cmwbt0011 for further processing.
 
 =head1 SYNOPSIS
 
