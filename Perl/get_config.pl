@@ -143,6 +143,8 @@ sub get_node_attr($) {
 	my (@clean_attribs);
 	foreach my $val (@attrib_arr) {
 		if (length(trim($val)) > 0) {
+			# Replace double quote with single quote
+			$val =~ s/\"/\'/g;
 			push @clean_attribs, $val;
 		}
 	}

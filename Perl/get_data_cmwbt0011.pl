@@ -48,6 +48,9 @@ my ($log, $dbh);
 # use
 #####
 
+use FindBin;
+use lib "$FindBin::Bin/lib";
+
 use warnings;			    # show warning messages
 use strict 'vars';
 use strict 'refs';
@@ -118,9 +121,11 @@ sub handle_bedrijfstoepassing($) {
 		my $cmdb_id = $$bd_array{'CMDB referentie bedrijfstoepassing'} || "";
 		my $naam = $$bd_array{'Naam bedrijfstoepassing'} || "";
 		my $bt_nummer = $$bd_array{'Nummer bedrijfstoepassing'} || "";
+		my $so_toepassingsmanager = $$bd_array{'SO Toepassingsmanager(s)'};
+		my $vo_applicatiebeheerder = $$bd_array{'VO Applicatiebeheerder(s)'};
 		# Now make CMDB ID unique
 		$cmdb_id = $cmdb_id + 1000000;
-		my @fields = qw (ci_class cmdb_id naam bt_nummer);
+		my @fields = qw (ci_class cmdb_id naam bt_nummer so_toepassingsmanager vo_applicatiebeheerder);
 		my (@vals) = map { eval ("\$" . $_ ) } @fields;
 		unless (create_record($dbh, "component", \@fields, \@vals)) {
 			$log->fatal("Could not create record for $ci_class $cmdb_id");
@@ -195,10 +200,50 @@ if ($log->is_trace()) {
 # Make database connection for vo database
 $dbh = db_connect("vo") or exit_application(1);
 
-# New Run, so clear Component Table
-$log->info("Truncate Table");
-my $query = "TRUNCATE TABLE component";
+# Drop table component if exists
+my $query = "DROP TABLE IF EXISTS component";
 unless (do_stmt($dbh, $query)) {
+	$log->fatal("Could not drop table component, exiting...");
+	exit_application(1);
+}
+
+# Create Table Component
+$query = "CREATE TABLE IF NOT EXISTS `component` (
+			  `id` int(11) NOT NULL AUTO_INCREMENT,
+			  `cmdb_id` int(11) NOT NULL,
+			  `bt_nummer` int(11) DEFAULT NULL,
+			  `ci_categorie` varchar(255) DEFAULT NULL,
+			  `ci_class` varchar(255) DEFAULT NULL,
+			  `ci_type` varchar(255) DEFAULT NULL,
+			  `datum_buiten_gebruik` date DEFAULT NULL,
+			  `datum_in_gebruik` date DEFAULT NULL,
+			  `dienstentype` varchar(255) DEFAULT NULL,
+			  `eigenaar_beleidsdomein` varchar(255) DEFAULT NULL,
+			  `eigenaar_entiteit` varchar(255) DEFAULT NULL,
+			  `fin_beleidsdomein` varchar(255) DEFAULT NULL,
+			  `fin_entiteit` varchar(255) DEFAULT NULL,
+			  `functionele_naam` varchar(255) DEFAULT NULL,
+			  `hw_sw_flag` varchar(255) DEFAULT NULL,
+			  `locatie` varchar(255) DEFAULT NULL,
+			  `naam` varchar(255) DEFAULT NULL,
+			  `omgeving` varchar(255) DEFAULT NULL,
+			  `os` varchar(255) DEFAULT NULL,
+			  `os_versie` varchar(255) DEFAULT NULL,
+			  `producent` varchar(255) DEFAULT NULL,
+			  `product` varchar(255) DEFAULT NULL,
+			  `so_toepassingsmanager` varchar(255) DEFAULT NULL,
+			  `status` varchar(255) DEFAULT NULL,
+			  `versie` varchar(255) DEFAULT NULL,
+			  `vo_applicatiebeheerder` varchar(255) DEFAULT NULL,
+			  `standaarddatum` date DEFAULT NULL,
+			  `uitdovend_datum` date DEFAULT NULL,
+			  `uitgedoofd_datum` date DEFAULT NULL,
+			  PRIMARY KEY (`id`),
+			  UNIQUE KEY `cmdb_id` (`cmdb_id`),
+			  KEY `naam` (`naam`)
+			) ENGINE=MyISAM  DEFAULT CHARSET=utf8";
+unless (do_stmt($dbh, $query)) {
+	$log->fatal("Could not create table component, exiting...");
 	exit_application(1);
 }
 
@@ -218,7 +263,8 @@ handle_toepassingomgeving($ref);
 # Get Bedrijfstoepassing
 $log->info("Get data for Bedrijfstoepassing");
 $query = "SELECT distinct `CMDB referentie bedrijfstoepassing`, `Naam bedrijfstoepassing`, 
-				 `Nummer bedrijfstoepassing` 
+				 `Nummer bedrijfstoepassing`, `SO Toepassingsmanager(s)`,
+				 `VO Applicatiebeheerder(s)`
 				 FROM `cmwbt0011` WHERE length( `Naam bedrijfstoepassing`) > 0";
 $ref = do_select($dbh, $query);
 unless (defined $ref) {

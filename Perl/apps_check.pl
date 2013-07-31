@@ -60,7 +60,7 @@ my ($log, $cfg, $dbh, $top_ci, $msg, @msgs, $connections, %states);
 my ($comp, $no_comp, $sw_cnt, $sw_cnt_bou, $job_cnt, $job_cnt_bou, %locations);
 my ($complexiteit, $migratie);
 my @fields = qw (cmdb_id naam connections comp no_comp sw_cnt sw_cnt_bou 
-				 job_cnt job_cnt_bou complexiteit migratie msgstr 
+				 job_cnt job_cnt_bou complexiteit migratie totale_kost msgstr 
 				 status_not_defined status_buiten_gebruik status_in_gebruik
 				 status_in_stock status_nieuw status_not_niet_in_gebruik);
 
@@ -147,39 +147,32 @@ sub go_down($$) {
 		my $ci_type_target = $$arrayhdl{ci_type_target};
 		my $ci_categorie = $$arrayhdl{ci_categorie};
 		my $status = $$arrayhdl{status} || "not defined";
-		# Did I find a Software Component or Job?
-		my @sw_types = $cfg->val("TYPES", "sw_type");
-		my @job_types = $cfg->val("TYPES", "job_type");
-		# First find the Software Components
-		if (grep {lc($_) eq lc($ci_type_target)} @sw_types) {
-			$sw_cnt++;
-			get_type($cmdb_id_target, "sw_type");
-			if (defined $locations{$cmdb_id_target}) {
-				$sw_cnt_bou++;
-			}
-		} elsif (grep {lc($_) eq lc($ci_type_target)} @job_types) {
-			$job_cnt++;
-			get_type($cmdb_id_target, "job_type");
-			if (defined $locations{$cmdb_id_target}) {
-				$job_cnt_bou++;
-			}
-		} else {
-			my $msg = "Unexpected Component Type $ci_type_target for application $cmdb_id";
-			push @msgs, $msg;
-#			$log->error($msg);
-		}
+		# Handle the component. Assumption is that it should be
+		# software or job component.
+		handle_component($cmdb_id_target, $ci_type_target);
 	}
 }
 
-sub get_type {
-	my ($sw_id, $sw_type) = @_;
+sub handle_component {
+	my ($cmdb_id, $ci_type) = @_;
 	my $table;
-	if ($sw_type eq "sw_type") {
+	# Did I find a Software Component or Job?
+	my @sw_types = $cfg->val("TYPES", "sw_type");
+	my @job_types = $cfg->val("TYPES", "job_type");
+	if (grep {lc($_) eq lc($ci_type)} @sw_types) {
 		$table = "sw_checks";
-	} elsif ($sw_type eq "job_type") {
+		$sw_cnt++;
+		if (defined $locations{$cmdb_id}) {
+			$sw_cnt_bou++;
+		}
+	} elsif (grep {lc($_) eq lc($ci_type)} @job_types) {
 		$table = "job_checks";
-	} else  {
-		$log->error("SW Type $sw_type unknown (should be sw_type or job_type)");
+		$job_cnt++;
+		if (defined $locations{$cmdb_id}) {
+			$job_cnt_bou++;
+		}
+	} else {
+		my $msg = "Unexpected Component Type $ci_type ($cmdb_id)";
 		return;
 	}
 	my @fields = qw (comp_naam comp_type connections complexiteit migratie
@@ -188,7 +181,7 @@ sub get_type {
 	my $selectstr = join (", ", map { $_ } @fields);
 	my $query = "SELECT $selectstr
 				 FROM $table
-				 WHERE sw_id = $sw_id";
+				 WHERE sw_id = $cmdb_id";
 	my $ref = singleton_select($dbh, $query);
 	# Consolidate values for this application
 	my $arrayhdl = @$ref[0];
@@ -199,8 +192,13 @@ sub get_type {
 		$no_comp++;
 	}
 	$connections += $$arrayhdl{connections};
+	# Remember total complexiteit kost, but use it only if at least one
+	# leg of application is in Boudewijn
 	$complexiteit += $$arrayhdl{complexiteit};
-	$migratie += $$arrayhdl{migratie};
+	# Add migratie kost only for components in Boudewijn
+	if (defined $locations{$cmdb_id}) {
+		$migratie += $$arrayhdl{migratie};
+	}
 	foreach my $status (qw(status_not_defined status_buiten_gebruik status_in_gebruik
 		status_in_stock status_nieuw status_not_niet_in_gebruik)) {
 		$states{$status} += $$arrayhdl{$status};
@@ -219,7 +217,8 @@ sub save_results {
 		$complexiteit = 0;
 		$migratie = 0;
 	}
-	my @fields = qw (cmdb_id naam connections comp no_comp sw_cnt sw_cnt_bou job_cnt job_cnt_bou complexiteit migratie msgstr);
+	my $totale_kost = $complexiteit + $migratie;
+	my @fields = qw (cmdb_id naam connections comp no_comp sw_cnt sw_cnt_bou job_cnt job_cnt_bou complexiteit migratie totale_kost msgstr);
     my (@vals) = map { eval ("\$" . $_ ) } @fields;
 	# Also add status counters to fields and vals
 	foreach my $status (qw(status_not_defined status_buiten_gebruik status_in_gebruik
@@ -298,6 +297,7 @@ $query = "CREATE TABLE IF NOT EXISTS `apps_checks` (
 			  `job_cnt_bou` int(11) DEFAULT NULL,
 			  `complexiteit` double DEFAULT NULL,
 			  `migratie` double DEFAULT NULL,
+			  `totale_kost` double DEFAULT NULL,
 			  `msgstr` text,
 			  `status_not_defined` int(11) DEFAULT NULL,
 			  `status_buiten_gebruik` int(11) DEFAULT NULL,
