@@ -51,10 +51,8 @@ No inline options are available. There is a properties\vo.ini file that contains
 my ($log, $cfg, $dbh, @msgs, $connections, %states);
 my ($sw_cnt, $job_cnt, %locations);
 # eosl variables
-my ($computer_uitdovend, $component_uitdovend, $os_uitdovend);
-my ($computer_uitgedoofd, $component_uitgedoofd, $os_uitgedoofd);
-my (%computer_uitdovend_hash, %component_uitdovend_hash, %os_uitdovend_hash);
-my (%computer_uitgedoofd_hash, %component_uitgedoofd_hash, %os_uitgedoofd_hash);
+my (%computer_uitdovend, %component_uitdovend, %os_uitdovend);
+my (%computer_uitgedoofd, %component_uitgedoofd, %os_uitgedoofd);
 my @fields = qw (cmdb_id naam ci_type ci_categorie locatie 
                  sw_cnt job_cnt 
 				 connections msgstr 
@@ -113,8 +111,25 @@ sub trim {
     return wantarray ? @out : $out[0];
 }
 
+sub get_eosl($) {
+	my ($cmdb_id) = @_;
+	my $query  = "SELECT uitdovend_datum, uitgedoofd_datum
+				  FROM eosl
+				  WHERE cmdb_id = $cmdb_id";
+	my $ref = do_select($dbh, $query);
+	my $uitdovend = "";
+	my $uitgedoofd = "";
+	if (defined $ref) {
+		my $record = @$ref[0];
+		$uitdovend = $$record{uitdovend_datum} || "";
+		$uitgedoofd = $$record{uitgedoofd_datum} || "";
+	}
+	return ($uitdovend, $uitgedoofd);
+}
+
 sub get_eosl_os {
-	my $query = "SELECT r.cmdb_id_target as cmdb_id, e.uitdovend_datum as uitdovend_datum, 
+	my $query = "SELECT r.cmdb_id_target as cmdb_id, 
+						e.uitdovend_datum as uitdovend_datum, 
 						e.uitgedoofd_datum as uitgedoofd_datum
 				 FROM relations r, component c, eosl e
 				 WHERE r.relation = 'is afhankelijk van'
@@ -133,14 +148,120 @@ sub get_eosl_os {
 		my $cmdb_id = $$record{cmdb_id};
 		my $uitdovend_datum = $$record{uitdovend_datum} || "";
 		my $uitgedoofd_datum = $$record{uitgedoofd_datum} || "";
-		if (defined $uitdovend_datum) {
-			$os_uitdovend_hash{$cmdb_id} = $uitdovend_datum;
+		if (length($uitdovend_datum) > 4) {
+			$os_uitdovend{$cmdb_id} = $uitdovend_datum;
 		}
-		if (defined $uitgedoofd_datum) {
-			$os_uitgedoofd_hash{$cmdb_id} = $uitgedoofd_datum;
+		if (length($uitgedoofd_datum) > 4) {
+			$os_uitgedoofd{$cmdb_id} = $uitgedoofd_datum;
 		}
 	}
 }
+
+sub get_minimum($$) {
+	my ($val1, $val2) = @_;
+	if ((length($val1) > 4) && (defined $val2)) {
+		my $int_val1 = $val1;
+		my $int_val2 = $val2;
+		$int_val1 =~ s/\-//g;
+		$int_val2 =~ s/\-//g;
+		if ($int_val1 < $int_val2) {
+			return $val1;
+		} else {
+			return $val2;
+		}
+	} elsif ((length($val1) > 4) && (not(defined $val2))) {
+		return $val1;
+	} elsif ((not(length($val1) > 4)) && (defined $val2)) {
+		return $val2;
+	} elsif ((not(length($val1) > 4)) && (not(defined $val2))) {
+		return "";
+	}
+}
+
+=pod
+
+=head2 Handle EOSL data
+
+Get EOSL data for this component. 
+
+If category = 'FYSIEKE COMPUTER' then 
+verify if there is a value already
+if yes, print error message.
+Keep oldest date.
+If type = 'SW PROD...', but not OS:
+keep oldest value.
+If type = 'SW PROD...' and OS
+ignore
+IF other type
+print error message.
+
+Be careful: keep track of values within recursive path, but do not share values between recursive paths.
+
+=cut
+
+sub handle_eosl_data($$$$) {
+	my ($cmdb_id_prev, $cmdb_id, $ci_type, $ci_categorie) = @_;
+	my $uitdovend = "";
+    my $uitgedoofd= "";
+	if (($ci_type eq "FYSIEKE COMPUTER") ||
+		(($ci_type eq "SW PROD INSTALL. OP SYST.INFRA.") && (not($ci_categorie eq "OPERATING SYSTEEM")))) {
+		($uitdovend, $uitgedoofd) = get_eosl($cmdb_id);
+	}
+	# Handle Fysieke Computer
+	if ($ci_type eq "FYSIEKE COMPUTER") {
+		my $computer_uitdovend_val = get_minimum($uitdovend, $computer_uitdovend{$cmdb_id_prev});
+		my $computer_uitgedoofd_val = get_minimum($uitgedoofd, $computer_uitgedoofd{$cmdb_id_prev});
+		if (length($computer_uitdovend_val) > 4) {
+			$computer_uitdovend{$cmdb_id} = $computer_uitdovend_val;
+		}
+		if (length($computer_uitgedoofd_val) > 4) {
+			$computer_uitgedoofd{$cmdb_id} = $computer_uitgedoofd_val;
+		}
+	}
+	# Handle Component
+	if (($ci_type eq "SW PROD INSTALL. OP SYST.INFRA.") && (not($ci_categorie eq "OPERATING SYSTEEM"))) {
+		my $component_uitdovend_val = get_minimum($uitdovend, $component_uitdovend{$cmdb_id_prev});
+		my $component_uitgedoofd_val = get_minimum($uitgedoofd, $component_uitgedoofd{$cmdb_id_prev});
+		if (length($component_uitdovend_val) > 4) {
+			$component_uitdovend{$cmdb_id} = $component_uitdovend_val;
+		}
+		if (length($component_uitgedoofd_val) > 4) {
+			$component_uitgedoofd{$cmdb_id} = $component_uitgedoofd_val;
+		}
+	}
+	# Now propagate values in all cases
+	if (not(defined $computer_uitdovend{$cmdb_id})) {
+		if (defined $computer_uitdovend{$cmdb_id_prev}) {
+			$computer_uitdovend{$cmdb_id} = $computer_uitdovend{$cmdb_id_prev};
+		}
+	}
+	if (not(defined $component_uitdovend{$cmdb_id})) {
+		if (defined $component_uitdovend{$cmdb_id_prev}) {
+			$component_uitdovend{$cmdb_id} = $component_uitdovend{$cmdb_id_prev};
+		}
+	}
+	if (not(defined $os_uitdovend{$cmdb_id})) {
+		if (defined $os_uitdovend{$cmdb_id_prev}) {
+			$os_uitdovend{$cmdb_id} = $os_uitdovend{$cmdb_id_prev};
+		}
+	}
+	if (not(defined $computer_uitgedoofd{$cmdb_id})) {
+		if (defined $computer_uitgedoofd{$cmdb_id_prev}) {
+			$computer_uitgedoofd{$cmdb_id} = $computer_uitgedoofd{$cmdb_id_prev};
+		}
+	}
+	if (not(defined $component_uitgedoofd{$cmdb_id})) {
+		if (defined $component_uitgedoofd{$cmdb_id_prev}) {
+			$component_uitgedoofd{$cmdb_id} = $component_uitgedoofd{$cmdb_id_prev};
+		}
+	}
+	if (not(defined $os_uitgedoofd{$cmdb_id})) {
+		if (defined $os_uitgedoofd{$cmdb_id_prev}) {
+			$os_uitgedoofd{$cmdb_id} = $os_uitgedoofd{$cmdb_id_prev};
+		}
+	}
+}
+
 
 sub go_up($$$);
 
@@ -185,6 +306,7 @@ sub go_up($$$) {
 		if (defined($location_comp)) {
 			$locations{$cmdb_id_source} = $location_comp;
 		}
+		handle_eosl_data($cmdb_id, $cmdb_id_source, $ci_type_source, $ci_categorie);
 		# Did I find a Software Component or Job?
 		my @sw_types = $cfg->val("TYPES", "sw_type");
 		my @job_types = $cfg->val("TYPES", "job_type");
@@ -339,6 +461,8 @@ foreach my $record (@$ref) {
 	$connections = 0;
 	$sw_cnt = 0;
 	$job_cnt = 0;
+	my ($computer_uitdovend, $component_uitdovend, $os_uitdovend);
+	my ($computer_uitgedoofd, $component_uitgedoofd, $os_uitgedoofd);
 	my $cmdb_id      = $$record{'cmdb_id'};
 	my $naam         = $$record{'naam'};
 	my $ci_categorie = $$record{'ci_categorie'};
@@ -350,6 +474,17 @@ foreach my $record (@$ref) {
 		$locations{$cmdb_id} = $locatie;
 	} else {
 		undef $locatie;
+	}
+	# Initialize EOSL data
+	# Read data for Fysieke server
+	# If there is data for OS, then it was initialized in sub get_eosl_os
+	# There is not yet Component data.
+	my ($uitdovend, $uitgedoofd) = get_eosl($cmdb_id);
+	if (length($uitdovend) > 4) {
+		$computer_uitdovend{$cmdb_id} = $uitdovend;
+	}
+	if (length($uitgedoofd) > 4) {
+		$computer_uitgedoofd{$cmdb_id} = $uitgedoofd;
 	}
 	$states{$status}++;
 	go_up($cmdb_id, $naam, $locatie);
@@ -375,7 +510,7 @@ unless (do_stmt($dbh, $query)) {
 	exit_application(1);
 }
 
-# CREATE table system_checks
+# CREATE table derived_locations
 $query = "CREATE TABLE IF NOT EXISTS `derived_locations` (
 			  `ID` int(11) NOT NULL AUTO_INCREMENT,
 			  `cmdb_id` double DEFAULT NULL,
@@ -391,6 +526,82 @@ while (my ($cmdb_id, $locatie) = each %locations) {
 	my @vals = ($cmdb_id, $locatie);
 	unless (create_record($dbh, "derived_locations", \@fields, \@vals)) {
 		$log->fatal("Could not insert record into derived_locations");
+		exit_application(1);
+	}
+}
+
+# Save the derived_eosl
+$log->info("Write the Derived EOSL to Table");
+# Drop table derived_eosl if exists
+$query = "DROP TABLE IF EXISTS derived_eosl";
+unless (do_stmt($dbh, $query)) {
+	$log->fatal("Could not drop table derived_eosl, exiting...");
+	exit_application(1);
+}
+
+# CREATE table derived_locations
+$query = "CREATE TABLE IF NOT EXISTS `derived_eosl` (
+			  `ID` int(11) NOT NULL AUTO_INCREMENT,
+			  `cmdb_id` double DEFAULT NULL,
+			  `label` varchar(255) default NULL,
+			  `eosl_date` date DEFAULT NULL,
+			  PRIMARY KEY (`ID`)
+		  ) ENGINE=MyISAM DEFAULT CHARSET=utf8";
+unless (do_stmt($dbh, $query)) {
+	$log->fatal("Could not create table derived_locations, exiting...");
+	exit_application(1);
+}
+while (my ($cmdb_id, $eosl_date) = each %computer_uitdovend) {
+	my $label = "computer_uitdovend";
+	my @fields = qw (cmdb_id label eosl_date);
+	my @vals = ($cmdb_id, $label, $eosl_date);
+	unless (create_record($dbh, "derived_eosl", \@fields, \@vals)) {
+		$log->fatal("Could not insert record into derived_eosl");
+		exit_application(1);
+	}
+}
+while (my ($cmdb_id, $eosl_date) = each %computer_uitgedoofd) {
+	my $label = "computer_uitgedoofd";
+	my @fields = qw (cmdb_id label eosl_date);
+	my @vals = ($cmdb_id, $label, $eosl_date);
+	unless (create_record($dbh, "derived_eosl", \@fields, \@vals)) {
+		$log->fatal("Could not insert record into derived_eosl");
+		exit_application(1);
+	}
+}
+while (my ($cmdb_id, $eosl_date) = each %component_uitdovend) {
+	my $label = "component_uitdovend";
+	my @fields = qw (cmdb_id label eosl_date);
+	my @vals = ($cmdb_id, $label, $eosl_date);
+	unless (create_record($dbh, "derived_eosl", \@fields, \@vals)) {
+		$log->fatal("Could not insert record into derived_eosl");
+		exit_application(1);
+	}
+}
+while (my ($cmdb_id, $eosl_date) = each %component_uitgedoofd) {
+	my $label = "component_uitgedoofd";
+	my @fields = qw (cmdb_id label eosl_date);
+	my @vals = ($cmdb_id, $label, $eosl_date);
+	unless (create_record($dbh, "derived_eosl", \@fields, \@vals)) {
+		$log->fatal("Could not insert record into derived_eosl");
+		exit_application(1);
+	}
+}
+while (my ($cmdb_id, $eosl_date) = each %os_uitdovend) {
+	my $label = "os_uitdovend";
+	my @fields = qw (cmdb_id label eosl_date);
+	my @vals = ($cmdb_id, $label, $eosl_date);
+	unless (create_record($dbh, "derived_eosl", \@fields, \@vals)) {
+		$log->fatal("Could not insert record into derived_eosl");
+		exit_application(1);
+	}
+}
+while (my ($cmdb_id, $eosl_date) = each %os_uitgedoofd) {
+	my $label = "os_uitgedoofd";
+	my @fields = qw (cmdb_id label eosl_date);
+	my @vals = ($cmdb_id, $label, $eosl_date);
+	unless (create_record($dbh, "derived_eosl", \@fields, \@vals)) {
+		$log->fatal("Could not insert record into derived_eosl");
 		exit_application(1);
 	}
 }
