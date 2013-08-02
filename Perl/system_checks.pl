@@ -22,6 +22,8 @@ Each Computer must be connected to a Software Component. The relation between So
 
 Each Physical Computer has a location. This location is upwards propagated to all components on the path, up till Software / Job Component.
 
+On path to (software) component, remember and propagate eosl variables. Remember the oldest date for each ID. For OS, attach OS EOSL first to it's computersystem before it can be propagated.
+
 =head1 SYNOPSIS
 
  system_checks.pl
@@ -48,6 +50,11 @@ No inline options are available. There is a properties\vo.ini file that contains
 
 my ($log, $cfg, $dbh, @msgs, $connections, %states);
 my ($sw_cnt, $job_cnt, %locations);
+# eosl variables
+my ($computer_uitdovend, $component_uitdovend, $os_uitdovend);
+my ($computer_uitgedoofd, $component_uitgedoofd, $os_uitgedoofd);
+my (%computer_uitdovend_hash, %component_uitdovend_hash, %os_uitdovend_hash);
+my (%computer_uitgedoofd_hash, %component_uitgedoofd_hash, %os_uitgedoofd_hash);
 my @fields = qw (cmdb_id naam ci_type ci_categorie locatie 
                  sw_cnt job_cnt 
 				 connections msgstr 
@@ -104,6 +111,35 @@ sub trim {
         s/\s+$//;
     }
     return wantarray ? @out : $out[0];
+}
+
+sub get_eosl_os {
+	my $query = "SELECT r.cmdb_id_target as cmdb_id, e.uitdovend_datum as uitdovend_datum, 
+						e.uitgedoofd_datum as uitgedoofd_datum
+				 FROM relations r, component c, eosl e
+				 WHERE r.relation = 'is afhankelijk van'
+				   AND r.cmdb_id_source = c.cmdb_id
+				   AND c.ci_type = 'SW PROD INSTALL. OP SYST.INFRA.'
+				   AND c.ci_categorie = 'OPERATING SYSTEEM'
+				   AND r.cmdb_id_source = e.cmdb_id
+				   AND (NOT ((e.uitdovend_datum is null) AND
+							 (e.uitgedoofd_datum is null)))";
+	my $ref = do_select($dbh, $query);
+	unless (defined $ref) {
+		$log->fatal("Could not get EOSL data for OS");
+		exit_application(1);
+	}
+	foreach my $record (@$ref) {
+		my $cmdb_id = $$record{cmdb_id};
+		my $uitdovend_datum = $$record{uitdovend_datum} || "";
+		my $uitgedoofd_datum = $$record{uitgedoofd_datum} || "";
+		if (defined $uitdovend_datum) {
+			$os_uitdovend_hash{$cmdb_id} = $uitdovend_datum;
+		}
+		if (defined $uitgedoofd_datum) {
+			$os_uitgedoofd_hash{$cmdb_id} = $uitgedoofd_datum;
+		}
+	}
 }
 
 sub go_up($$$);
@@ -287,6 +323,10 @@ unless (do_stmt($dbh, $query)) {
 	exit_application(1);
 }
 
+# Assign EOSL for OS to Computersystem
+$log->info("Assign OS EOSL to computer systems");
+get_eosl_os;
+
 $log->info("Investigating Computer Systems");
 # Get all the 'Fysieke' Computers
 $query = "SELECT `cmdb_id`, `naam`, `ci_categorie`, `ci_type`, status, locatie
@@ -307,7 +347,7 @@ foreach my $record (@$ref) {
 	my $locatie		 = $$record{'locatie'} || "not defined";
 	if ($locatie eq "Boudewijn - Brussel/-1C Computerzaal") {
 		# All CIs that are related to Boudewijn have entry in derived_locations table.
-		$locations{$cmdb_id_source} = $location_comp;
+		$locations{$cmdb_id} = $locatie;
 	} else {
 		undef $locatie;
 	}
