@@ -58,11 +58,18 @@ No inline options are available. There is a properties\vo.ini file that contains
 
 my ($log, $cfg, $dbh, $top_ci, $msg, @msgs, $connections, %states);
 my ($comp, $no_comp, $sw_cnt, $sw_cnt_bou, $job_cnt, $job_cnt_bou, %locations);
-my ($complexiteit, $migratie);
+my ($complexiteit, $migratie, %eosl, %appl_eosl);
+my @eosl_labels = qw (computer_uitdovend computer_uitgedoofd
+					  os_uitdovend os_uitgedoofd
+					  component_uitdovend component_uitgedoofd);
 my @fields = qw (cmdb_id naam dienstentype eigenaar_beleidsdomein 
 		         eigenaar_entiteit fin_beleidsdomein fin_entiteit
 				 connections comp no_comp sw_cnt sw_cnt_bou 
-				 complexiteit migratie totale_kost msgstr 
+				 complexiteit migratie totale_kost 
+				 so_toepassingsmanager vo_applicatiebeheerder msgstr 
+				 computer_uitdovend computer_uitgedoofd
+				 os_uitdovend os_uitgedoofd
+				 component_uitdovend component_uitgedoofd
 				 status_not_defined status_buiten_gebruik status_in_gebruik
 				 status_in_stock status_nieuw status_not_niet_in_gebruik);
 
@@ -207,11 +214,54 @@ sub handle_component {
 		status_in_stock status_nieuw status_not_niet_in_gebruik)) {
 		$states{$status} += $$arrayhdl{$status};
 	}
+	handle_eosl($cmdb_id);
+}
+
+sub handle_eosl($) {
+	my ($cmdb_id) = @_;
+	foreach my $label (@eosl_labels) {
+		my $key = $cmdb_id . $label;
+		if (defined $eosl{$key}) {
+			if (defined $appl_eosl{$label}) {
+				my $val1 = $eosl{$key};
+				my $val2 = $appl_eosl{$label};
+				my $intval1 = $val1;
+				my $intval2 = $val2;
+				$intval1 =~ s/\-//g;
+				$intval2 =~ s/\-//g;
+				if ($intval1 < $intval2) {
+					$appl_eosl{$label} = $val1;
+				}
+			} else {
+				$appl_eosl{$label} = $eosl{$key};
+			}
+		}
+	}
+}
+
+sub get_mgmt($) {
+	my ($cmdb_id) = @_;
+	my $so_toepassingsmanager = "";
+	my $vo_applicatiebeheerder = "";
+	my $query = "SELECT so_toepassingsmanager, vo_applicatiebeheerder
+		         FROM relations, component
+				 WHERE relation = 'heeft component'
+				   AND cmdb_id_target = $cmdb_id
+				   AND cmdb_id_source = cmdb_id";
+	my $ref = do_select($dbh, $query);
+	if (defined $ref) {
+		my $record = @$ref[0];
+		$so_toepassingsmanager = $$record{so_toepassingsmanager};
+		$vo_applicatiebeheerder = $$record{vo_applicatiebeheerder};
+	} else {
+		$log->error("Could not find Bedrijfstoepassing for Application ID $cmdb_id");
+	}
+	return ($so_toepassingsmanager, $vo_applicatiebeheerder);
 }
 
 sub save_results {
 	my ($cmdb_id, $naam, $dienstentype, $eigenaar_beleidsdomein, 
-        $eigenaar_entiteit, $fin_beleidsdomein, $fin_entiteit,$msgref) = @_;
+        $eigenaar_entiteit, $fin_beleidsdomein, $fin_entiteit, $msgref) = @_;
 	if ($comp == 0) {
 		$msg = "Application cannot be linked to a Computer";
 		push @$msgref, $msg;
@@ -224,16 +274,27 @@ sub save_results {
 		$migratie = 0;
 	}
 	my $totale_kost = $complexiteit + $migratie;
+	my ($so_toepassingsmanager, $vo_applicatiebeheerder) = get_mgmt($cmdb_id);
 	my @fields = qw (cmdb_id naam dienstentype eigenaar_beleidsdomein 
 		         eigenaar_entiteit fin_beleidsdomein fin_entiteit
 				 connections comp no_comp sw_cnt sw_cnt_bou job_cnt 
-				 job_cnt_bou complexiteit migratie totale_kost msgstr);
+				 job_cnt_bou complexiteit migratie totale_kost 
+				 so_toepassingsmanager vo_applicatiebeheerder msgstr);
     my (@vals) = map { eval ("\$" . $_ ) } @fields;
 	# Also add status counters to fields and vals
 	foreach my $status (qw(status_not_defined status_buiten_gebruik status_in_gebruik
 		status_in_stock status_nieuw status_not_niet_in_gebruik)) {
 		push @fields, $status;
 		push @vals, $states{$status};
+	}
+	# And add EOSL information
+	foreach my $label (@eosl_labels) {
+		push @fields, $label;
+		if (defined $appl_eosl{$label}) {
+			push @vals, $appl_eosl{$label};
+		} else {
+			push @vals, undef;
+		}
 	}
 	# $log->trace(Dumper @fields);
 	# $log->trace(Dumper @vals);
@@ -302,6 +363,18 @@ $query = "CREATE TABLE IF NOT EXISTS `apps_checks` (
 			  `eigenaar_entiteit` varchar(255) DEFAULT NULL,
 			  `fin_beleidsdomein` varchar(255) DEFAULT NULL,
 			  `fin_entiteit` varchar(255) DEFAULT NULL,
+			  `so_toepassingsmanager` varchar(255) DEFAULT NULL,
+			  `vo_applicatiebeheerder` varchar(255) DEFAULT NULL,
+			  `complexiteit` double DEFAULT NULL,
+			  `migratie` double DEFAULT NULL,
+			  `totale_kost` double DEFAULT NULL,
+			  `msgstr` text,
+			  `computer_uitdovend` date DEFAULT NULL,
+			  `computer_uitgedoofd` date DEFAULT NULL,
+			  `component_uitdovend` date DEFAULT NULL,
+			  `component_uitgedoofd` date DEFAULT NULL,
+			  `os_uitdovend` date DEFAULT NULL,
+			  `os_uitgedoofd` date DEFAULT NULL,
 			  `connections` int(11) DEFAULT NULL,
 			  `comp` int(11) DEFAULT NULL,
 			  `no_comp` int(11) DEFAULT NULL,
@@ -309,10 +382,6 @@ $query = "CREATE TABLE IF NOT EXISTS `apps_checks` (
 			  `sw_cnt_bou` int(11) DEFAULT NULL,
 			  `job_cnt` int(11) DEFAULT NULL,
 			  `job_cnt_bou` int(11) DEFAULT NULL,
-			  `complexiteit` double DEFAULT NULL,
-			  `migratie` double DEFAULT NULL,
-			  `totale_kost` double DEFAULT NULL,
-			  `msgstr` text,
 			  `status_not_defined` int(11) DEFAULT NULL,
 			  `status_buiten_gebruik` int(11) DEFAULT NULL,
 			  `status_in_gebruik` int(11) DEFAULT NULL,
@@ -340,6 +409,22 @@ foreach my $arrayhdl (@$ref) {
 	$locations{$cmdb_id} = $location;
 }
 
+$log->info("Get derived EOSL information");
+$query = "SELECT *
+		  FROM derived_eosl";
+$ref = do_select($dbh, $query);
+unless (defined $ref) {
+	$log->fatal("Could not get derived eosl information");
+	exit_application(1);
+}
+foreach my $arrayhdl (@$ref) {
+	my $cmdb_id = $$arrayhdl{cmdb_id};
+	my $label = $$arrayhdl{label};
+	my $eosl_date = $$arrayhdl{eosl_date};
+	my $key = $cmdb_id . $label;
+	$eosl{$key} = $eosl_date;
+}
+
 $log->info("Investigating Applications");
 # Get all the SW Components
 $query = "SELECT *
@@ -349,6 +434,7 @@ $ref = do_select($dbh, $query);
 foreach my $record (@$ref) {
 	undef @msgs;
 	undef %states;
+	undef %appl_eosl;
 	$comp = 0;
 	$no_comp = 0;
 	$connections = 0;
@@ -372,7 +458,7 @@ foreach my $record (@$ref) {
 	$top_ci          = $cmdb_id;
 	go_down($cmdb_id, $naam);
 	save_results($top_ci, $naam, $dienstentype, $eigenaar_beleidsdomein, 
-		         $eigenaar_entiteit, $fin_beleidsdomein, $fin_entiteit,\@msgs);
+		         $eigenaar_entiteit, $fin_beleidsdomein, $fin_entiteit, \@msgs);
 }
 
 $log->info("Export apps_checks to excel");
@@ -394,7 +480,7 @@ unless (do_stmt($dbh, $query)) {
 }
 
 $log->info("Export apps_migrate to excel");
-my $nr_lines = write_table($dbh, "apps_migrate",\@fields);
+$nr_lines = write_table($dbh, "apps_migrate",\@fields);
 if (defined $nr_lines) {
 	$log->info("$nr_lines exported into excel file");
 } else {
