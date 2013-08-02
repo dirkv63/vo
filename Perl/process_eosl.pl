@@ -62,6 +62,9 @@ my ($log, $dbh);
 # use
 #####
 
+use FindBin;
+use lib "$FindBin::Bin/lib";
+
 use warnings;			    # show warning messages
 use strict 'vars';
 use strict 'refs';
@@ -168,7 +171,7 @@ unless (do_stmt($dbh, $query)) {
 }
 
 # Check that each cmdb_id occurs only once
-$query = "SELECT `CI CMDB referentie`, `CI systeemnaam`,`Standaarddatum`,
+$query = "SELECT distinct `CI CMDB referentie`, `CI systeemnaam`,`Standaarddatum`,
 				 `Uitdovend datum`, `Uitgedoofd datum` 
 		  FROM `rls0013_work`
 		  WHERE NOT ((`Standaarddatum` is null) 
