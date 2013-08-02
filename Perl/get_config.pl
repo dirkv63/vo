@@ -20,7 +20,7 @@ This script will get the configuration for the specified CI. The CI number is in
 
 =head1 SYNOPSIS
 
- get_config.pl [-c ci_id] [-b bedrijfsnummer]
+ get_config.pl [-c ci_id] [-b bedrijfsnummer] [-g] [-e]
 
  get_config -h	Usage
  get_config -h 1  Usage and description of the options
@@ -38,6 +38,14 @@ The CMDB ID number.
 
 Bedrijfstoepassingnummer. If CMDB_ID is also specified, then bedrijfstoepassingnummer is ignored.
 
+=item B<-g>
+
+If specified, then do not include 'gebruiksrelaties'.
+
+=item B<-e>
+
+If specified, then add EOSL information if available.
+
 =back
 
 =head1 ADDITIONAL DOCUMENTATION
@@ -48,7 +56,7 @@ Bedrijfstoepassingnummer. If CMDB_ID is also specified, then bedrijfstoepassingn
 # Variables
 ########### 
 
-my ($log, $dbh, $cmdb_id, $bt_id, %ci_hash, $no_gebruiksrel);
+my ($log, $dbh, $cmdb_id, $bt_id, %ci_hash, $no_gebruiksrel, $get_eosl);
 my $filedir = "c:/temp/";
 
 #####
@@ -100,6 +108,22 @@ sub trim {
     return wantarray ? @out : $out[0];
 }
 
+sub get_eosl($) {
+	my ($cmdb_id) = @_;
+	my $query  = "SELECT uitdovend_datum, uitgedoofd_datum
+				  FROM eosl
+				  WHERE cmdb_id = $cmdb_id";
+	my $ref = do_select($dbh, $query);
+	my $uitdovend = "";
+	my $uitgedoofd = "";
+	if (defined $ref) {
+		my $record = @$ref[0];
+		$uitdovend = $$record{uitdovend_datum} || "";
+		$uitgedoofd = $$record{uitgedoofd_datum} || "";
+	}
+	return ($uitdovend, $uitgedoofd);
+}
+
 sub edge_attr($) {
 	my ($relation) = @_;
 	my $color;
@@ -139,6 +163,15 @@ sub get_node_attr($) {
 	my $naam_id = "$naam ($cmdb_id)";
 	# my @attrib_arr = ($naam_id, $ci_categorie, $ci_type, $bt_nummer, $functionele_naam, $locatie, $omgeving, $os, $os_versie, $producent, $product, $versie, $status);
 	my @attrib_arr = ($naam_id, $ci_categorie, $ci_type, $locatie, "$os $os_versie", "$producent $product $versie", $status);
+	if (defined $get_eosl) {
+		my ($uitdovend, $uitgedoofd) = get_eosl($cmdb_id);
+		if (length($uitdovend) > 4) {
+			push @attrib_arr, "Uitdovend: $uitdovend";
+		}
+		if (length($uitgedoofd) > 4) {
+			push @attrib_arr, "Uitgedoofd: $uitgedoofd";
+		}
+	}
 	# Remove empty values from array
 	my (@clean_attribs);
 	foreach my $val (@attrib_arr) {
@@ -235,7 +268,7 @@ sub go_up($$) {
 
 # Handle input values
 my %options;
-getopts("h:c:b:g", \%options) or pod2usage(-verbose => 0);
+getopts("h:c:b:ge", \%options) or pod2usage(-verbose => 0);
 my $arglength = scalar keys %options;  
 if ($arglength == 0) {			# If no options specified,
 	$options{"h"} = 0;			# display usage.
@@ -270,6 +303,9 @@ if (defined $options{"c"}) {
 }
 if (exists $options{"g"}) {
 	$no_gebruiksrel = "Do not show";
+}
+if (exists $options{"e"}) {
+	$get_eosl = "Show EOSL Information";
 }
 # Show input parameters
 if ($log->is_trace()) {
