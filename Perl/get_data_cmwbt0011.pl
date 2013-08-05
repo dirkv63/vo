@@ -133,7 +133,7 @@ sub handle_bedrijfstoepassing($) {
 		my $vo_applicatiebeheerder = $$ref{'VO Applicatiebeheerder(s)'};
 		# Now make CMDB ID unique
 		$cmdb_id = $cmdb_id + 1000000;
-		my @fields = qw (ci_class cmdb_id naam bt_nummer so_toepassingsmanager);
+		my @fields = qw (ci_class cmdb_id naam bt_nummer so_toepassingsmanager vo_applicatiebeheerder);
 		my (@vals) = map { eval ("\$" . $_ ) } @fields;
 		unless (create_record($dbh, "component", \@fields, \@vals)) {
 			$log->fatal("Could not create record for $ci_class $cmdb_id");
@@ -243,9 +243,6 @@ $query = "CREATE TABLE IF NOT EXISTS `component` (
 			  `status` varchar(255) DEFAULT NULL,
 			  `versie` varchar(255) DEFAULT NULL,
 			  `vo_applicatiebeheerder` varchar(255) DEFAULT NULL,
-			  `standaarddatum` date DEFAULT NULL,
-			  `uitdovend_datum` date DEFAULT NULL,
-			  `uitgedoofd_datum` date DEFAULT NULL,
 			  PRIMARY KEY (`id`),
 			  UNIQUE KEY `cmdb_id` (`cmdb_id`),
 			  KEY `naam` (`naam`)
