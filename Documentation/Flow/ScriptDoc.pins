@@ -1,4 +1,4 @@
-; Thu Aug 01 17:16:17 CEST 2013
+; Mon Aug 05 06:36:52 CEST 2013
 ; 
 ;+ (version "3.4.8")
 ;+ (build "Build 629")
@@ -31,6 +31,21 @@
 	(runs_after [ScriptDoc_Class8])
 	(script_type perl)
 	(writes_to [ScriptDoc_Class11]))
+
+([ScriptDoc_Class10000] of  Artifact
+
+	(description "Extract of ApplicationChecks.xls limited to applications in Boudewijn.")
+	(is_part_of [ScriptDoc_Class36])
+	(is_written_by [ScriptDoc_Class46])
+	(name "MigrationOverview.xls"))
+
+([ScriptDoc_Class10001] of  Artifact
+
+	(description "Propagate EOSL data upwards. Remember oldest values for Computer, OS and SW Component, propagate these values as high as possible in the three. Every component encountered will get derived values that have been collected up to this point.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from [ScriptDoc_Class46])
+	(is_written_by [ScriptDoc_Class41])
+	(name "derived_eosl"))
 
 ([ScriptDoc_Class11] of  Artifact
 
@@ -94,6 +109,7 @@
 
 	(description "Table containing the EOSL information per CI.")
 	(is_part_of [ScriptDoc_Class4])
+	(is_read_from [ScriptDoc_Class41])
 	(is_written_by [ScriptDoc_Class16])
 	(name "eosl"))
 
@@ -265,7 +281,8 @@
 		[ScriptDoc_Class31]
 		[ScriptDoc_Class40]
 		[ScriptDoc_Class45]
-		[ScriptDoc_Class48])
+		[ScriptDoc_Class48]
+		[ScriptDoc_Class10000])
 	(name "Deliverables"))
 
 ([ScriptDoc_Class37] of  Script
@@ -307,7 +324,8 @@
 		[ScriptDoc_Class34]
 		[ScriptDoc_Class42]
 		[ScriptDoc_Class47]
-		[ScriptDoc_Class43])
+		[ScriptDoc_Class43]
+		[ScriptDoc_Class10001])
 	(name "vo"))
 
 ([ScriptDoc_Class40] of  Artifact
@@ -323,10 +341,12 @@
 	(name "system_checks.pl")
 	(reads_from
 		[ScriptDoc_Class9]
-		[ScriptDoc_Class11])
+		[ScriptDoc_Class11]
+		[ScriptDoc_Class17])
 	(script_type perl)
 	(writes_to
 		[ScriptDoc_Class42]
+		[ScriptDoc_Class10001]
 		[ScriptDoc_Class43]
 		[ScriptDoc_Class45]))
 
@@ -354,18 +374,20 @@
 
 ([ScriptDoc_Class46] of  Script
 
-	(description "An application is build up of components (Toepassingcomponentinstallatie) and / or Jobs. These are the building blocks of the application. For each application find the building blocks and read the component or job information from their tables. \n/SEAdd potential migration and complexity costs for the application. For each component that is in Boudewijn, add the migration cost. If at least one component in Boudewijn is found, add sum of all complexity costs.")
+	(description "An application is build up of components (Toepassingcomponentinstallatie) and / or Jobs. These are the building blocks of the application. For each application find the building blocks and read the component or job information from their tables. \nAdd potential migration and complexity costs for the application. For each component that is in Boudewijn, add the migration cost. If at least one component in Boudewijn is found, add sum of all complexity costs.")
 	(name "apps_check.pl")
 	(reads_from
 		[ScriptDoc_Class9]
 		[ScriptDoc_Class11]
 		[ScriptDoc_Class43]
 		[ScriptDoc_Class34]
-		[ScriptDoc_Class38])
+		[ScriptDoc_Class38]
+		[ScriptDoc_Class10001])
 	(script_type perl)
 	(writes_to
 		[ScriptDoc_Class47]
-		[ScriptDoc_Class48]))
+		[ScriptDoc_Class48]
+		[ScriptDoc_Class10000]))
 
 ([ScriptDoc_Class47] of  Artifact
 

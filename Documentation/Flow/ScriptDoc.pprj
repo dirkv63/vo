@@ -1,4 +1,4 @@
-; Thu Aug 01 17:16:17 CEST 2013
+; Mon Aug 05 06:36:52 CEST 2013
 ; 
 ;+ (version "3.4.8")
 ;+ (build "Build 629")
@@ -20,12 +20,12 @@
 ([BROWSER_SLOT_NAMES] of  Property_List
 
 	(properties
-		[ScriptDoc_ProjectKB_Class10012]
-		[ScriptDoc_ProjectKB_Class10013]
-		[ScriptDoc_ProjectKB_Class10014]
-		[ScriptDoc_ProjectKB_Class10015]
-		[ScriptDoc_ProjectKB_Class10016]
-		[ScriptDoc_ProjectKB_Class10017]))
+		[ScriptDoc_ProjectKB_Class10048]
+		[ScriptDoc_ProjectKB_Class10049]
+		[ScriptDoc_ProjectKB_Class10050]
+		[ScriptDoc_ProjectKB_Class10051]
+		[ScriptDoc_ProjectKB_Class10052]
+		[ScriptDoc_ProjectKB_Class10053]))
 
 ([CLSES_TAB] of  Widget
 
@@ -69,9 +69,6 @@
 	(is_hidden FALSE)
 	(widget_class_name "edu.stanford.smi.protege.widget.InstancesTab"))
 
-([KB_033450_Class3] of  Map
-)
-
 ([KB_051108_Class0] of  String
 
 	(name "factory_class_name")
@@ -80,9 +77,9 @@
 ([KB_051108_Class1] of  Map
 
 	(entries
-		[ScriptDoc_ProjectKB_Class10018]
-		[ScriptDoc_ProjectKB_Class10019]
-		[ScriptDoc_ProjectKB_Class10020]))
+		[ScriptDoc_ProjectKB_Class10054]
+		[ScriptDoc_ProjectKB_Class10055]
+		[ScriptDoc_ProjectKB_Class10056]))
 
 ([KB_051108_Class100] of  Property_List
 )
@@ -176,6 +173,9 @@
 ([KB_051108_Class99] of  Property_List
 )
 
+([KB_575764_Class3] of  Map
+)
+
 ([LAYOUT_PROPERTIES] of  Property_List
 
 	(name "layout properties")
@@ -262,8 +262,8 @@
 		[INSTANCE_ANNOTATION_FORM_WIDGET]
 		[ScriptDoc_ProjectKB_Class111]
 		[ScriptDoc_ProjectKB_Class155]
-		[STANDARD_FACET_FORM_WIDGET]
 		[STANDARD_SLOT_FORM_WIDGET]
+		[STANDARD_FACET_FORM_WIDGET]
 		[PAL_FORM_WIDGET]
 		[ScriptDoc_ProjectKB_Class142]
 		[STANDARD_CLASS_FORM_WIDGET])
@@ -374,51 +374,51 @@
 ([ScriptDoc_ProjectKB_Class10011] of  Property_List
 )
 
-([ScriptDoc_ProjectKB_Class10012] of  String
+([ScriptDoc_ProjectKB_Class10048] of  String
 
 	(name ":INSTANCE-ANNOTATION")
 	(string_value "%3AANNOTATION-TEXT"))
 
-([ScriptDoc_ProjectKB_Class10013] of  String
+([ScriptDoc_ProjectKB_Class10049] of  String
 
 	(name "Script")
 	(string_value "name"))
 
-([ScriptDoc_ProjectKB_Class10014] of  String
+([ScriptDoc_ProjectKB_Class10050] of  String
 
 	(name "Artifact")
 	(string_value "name"))
 
-([ScriptDoc_ProjectKB_Class10015] of  String
-
-	(name ":META-CLASS")
-	(string_value "%3ANAME"))
-
-([ScriptDoc_ProjectKB_Class10016] of  String
+([ScriptDoc_ProjectKB_Class10051] of  String
 
 	(name ":PAL-CONSTRAINT")
 	(string_value "%3APAL-NAME"))
 
-([ScriptDoc_ProjectKB_Class10017] of  String
+([ScriptDoc_ProjectKB_Class10052] of  String
+
+	(name ":META-CLASS")
+	(string_value "%3ANAME"))
+
+([ScriptDoc_ProjectKB_Class10053] of  String
 
 	(name "Container")
 	(string_value "name"))
 
-([ScriptDoc_ProjectKB_Class10018] of  Map_Entry
+([ScriptDoc_ProjectKB_Class10054] of  Map_Entry
 
 	(key "add_name_on_instance_form")
 	(key_class "java.lang.String")
 	(value "false")
 	(value_class "java.lang.String"))
 
-([ScriptDoc_ProjectKB_Class10019] of  Map_Entry
+([ScriptDoc_ProjectKB_Class10055] of  Map_Entry
 
 	(key "change_tracking_active")
 	(key_class "java.lang.String")
 	(value "false")
 	(value_class "java.lang.String"))
 
-([ScriptDoc_ProjectKB_Class10020] of  Map_Entry
+([ScriptDoc_ProjectKB_Class10056] of  Map_Entry
 
 	(key "suppress_instance_counting")
 	(key_class "java.lang.String")
