@@ -32,6 +32,8 @@ This script will load the report cmwbt0011 into the table cmwbt0011_work. The sc
 
 Full path and file to the CMWBT0011 report. The report needs to be in .xls format, since the Perl application cannot handle .xlsx files.
 
+If -x is not specified, the vo.ini parameter DATAWAREHOUSE.cmwbt0011 is read.
+
 =back
 
 =head1 ADDITIONAL DOCUMENTATION
@@ -42,12 +44,15 @@ Full path and file to the CMWBT0011 report. The report needs to be in .xls forma
 # Variables
 ########### 
 
-my ($log, $dbh, $xls_file);
+my ($log, $cfg, $dbh, $xls_file);
 my $table = "cmwbt0011_work";
 
 #####
 # use
 #####
+
+use FindBin;
+use lib "$FindBin::Bin/lib";
 
 use warnings;			    # show warning messages
 use strict 'vars';
@@ -121,7 +126,7 @@ if (defined $options{"h"}) {
 }
 # Get ini file configuration
 my $ini = { project => "vo" };
-my $cfg = load_ini($ini);
+$cfg = load_ini($ini);
 # Start logging
 setup_logging;
 $log = get_logger();
@@ -129,7 +134,15 @@ $log->info("Start application");
 # Get xls file
 if (defined $options{"x"}) {
 	$xls_file = $options{"x"};
-	if (not(-r $xls_file)) {
+} elsif ($cfg->SectionExists("DATAWAREHOUSE")) {
+	if ($cfg->val("DATAWAREHOUSE", "cmwbt0011")) {
+		$xls_file = $cfg->val("DATAWAREHOUSE", "cmwbt0011");
+	}
+}
+if (defined $xls_file) {
+	if (-r $xls_file) {
+		$log->info("Reading Datawarehouse input file $xls_file");
+	} else {
 		$log->fatal("Cannot read excel file $xls_file.");
 		exit_application(1);
 	}

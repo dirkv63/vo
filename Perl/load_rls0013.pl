@@ -32,6 +32,8 @@ This script will load the report rls0013 into the table rls0013_work.
 
 Full path and file to the rls0013 report. The report needs to be in .xls format, since the Perl application cannot handle .xlsx files.
 
+If -x is not specified, then parameter DATAWAREHOUSE.rls0013 is read to find the report location.
+
 =back
 
 =head1 ADDITIONAL DOCUMENTATION
@@ -47,6 +49,9 @@ my ($log, $dbh, $xls_file);
 #####
 # use
 #####
+
+use FindBin;
+use lib "$FindBin::Bin/lib";
 
 use warnings;			    # show warning messages
 use strict 'vars';
@@ -127,7 +132,15 @@ $log->info("Start application");
 # Get xls file
 if (defined $options{"x"}) {
 	$xls_file = $options{"x"};
-	if (not(-r $xls_file)) {
+} elsif ($cfg->SectionExists("DATAWAREHOUSE")) {
+	if ($cfg->val("DATAWAREHOUSE", "rls0013")) {
+		$xls_file = $cfg->val("DATAWAREHOUSE", "rls0013");
+	}
+}
+if (defined $xls_file) {
+	if (-r $xls_file) {
+		$log->info("Reading Datawarehouse input file $xls_file");
+	} else {
 		$log->fatal("Cannot read excel file $xls_file.");
 		exit_application(1);
 	}

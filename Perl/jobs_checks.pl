@@ -227,13 +227,13 @@ sub save_results {
 	if (defined $migratiekost{$kostkey}) {
 		$migratie = $migratiekost{$kostkey};
 	} else {
-		$log->trace("Migratiekosten voor $sw_type $sw_categorie $comp_type niet gevonden");
+		$log->trace("Migratiekosten voor $sw_type $sw_categorie $comp_type_key niet gevonden");
 		$migratie = 0;
 	}
 	if (defined $complexiteitkost{$kostkey}) {
 		$complexiteit = $complexiteitkost{$kostkey};
 	} else {
-		$log->trace("Complexiteitkosten voor $sw_type $sw_categorie $comp_type niet gevonden");
+		$log->trace("Complexiteitkosten voor $sw_type $sw_categorie $comp_type_key niet gevonden");
 		$complexiteit = 0;
 	}
 	# Collect states
