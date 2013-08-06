@@ -58,14 +58,14 @@ No inline options are available. There is a properties\vo.ini file that contains
 
 my ($log, $cfg, $dbh, $top_ci, $msg, @msgs, $connections, %states);
 my ($comp, $no_comp, $sw_cnt, $sw_cnt_bou, $job_cnt, $job_cnt_bou, %locations);
-my ($complexiteit, $migratie, %eosl, %appl_eosl);
+my ($assessment, $migratie, %eosl, %appl_eosl);
 my @eosl_labels = qw (computer_uitdovend computer_uitgedoofd
 					  os_uitdovend os_uitgedoofd
 					  component_uitdovend component_uitgedoofd);
 my @fields = qw (cmdb_id naam dienstentype eigenaar_beleidsdomein 
 		         eigenaar_entiteit fin_beleidsdomein fin_entiteit
 				 connections comp no_comp sw_cnt sw_cnt_bou 
-				 complexiteit migratie totale_kost 
+				 assessment migratie totale_kost 
 				 so_toepassingsmanager vo_applicatiebeheerder msgstr 
 				 computer_uitdovend computer_uitgedoofd
 				 os_uitdovend os_uitgedoofd
@@ -186,7 +186,7 @@ sub handle_component {
 		my $msg = "Unexpected Component Type $ci_type ($cmdb_id)";
 		return;
 	}
-	my @fields = qw (comp_naam comp_type connections complexiteit migratie
+	my @fields = qw (comp_naam comp_type connections assessment migratie
 					 status_not_defined status_buiten_gebruik status_in_gebruik
 					 status_in_stock status_nieuw status_not_niet_in_gebruik);
 	my $selectstr = join (", ", map { $_ } @fields);
@@ -203,9 +203,9 @@ sub handle_component {
 		$no_comp++;
 	}
 	$connections += $$arrayhdl{connections};
-	# Remember total complexiteit kost, but use it only if at least one
+	# Remember total assessment kost, but use it only if at least one
 	# leg of application is in Boudewijn
-	$complexiteit += $$arrayhdl{complexiteit};
+	$assessment += $$arrayhdl{assessment};
 	# Add migratie kost only for components in Boudewijn
 	if (defined $locations{$cmdb_id}) {
 		$migratie += $$arrayhdl{migratie};
@@ -267,18 +267,18 @@ sub save_results {
 		push @$msgref, $msg;
 	}
 	my $msgstr = join ("\n", @$msgref);
-	# Set migratie & complexiteit kost to 0 if not related to Boudewijn Computerzaal
+	# Set migratie & assessment kost to 0 if not related to Boudewijn Computerzaal
 #	if (($sw_cnt_bou == 0) && ($job_cnt_bou == 0)) {
 	if ($sw_cnt_bou == 0) {
-		$complexiteit = 0;
+		$assessment = 0;
 		$migratie = 0;
 	}
-	my $totale_kost = $complexiteit + $migratie;
+	my $totale_kost = $assessment + $migratie;
 	my ($so_toepassingsmanager, $vo_applicatiebeheerder) = get_mgmt($cmdb_id);
 	my @fields = qw (cmdb_id naam dienstentype eigenaar_beleidsdomein 
 		         eigenaar_entiteit fin_beleidsdomein fin_entiteit
 				 connections comp no_comp sw_cnt sw_cnt_bou job_cnt 
-				 job_cnt_bou complexiteit migratie totale_kost 
+				 job_cnt_bou assessment migratie totale_kost 
 				 so_toepassingsmanager vo_applicatiebeheerder msgstr);
     my (@vals) = map { eval ("\$" . $_ ) } @fields;
 	# Also add status counters to fields and vals
@@ -365,7 +365,7 @@ $query = "CREATE TABLE IF NOT EXISTS `apps_checks` (
 			  `fin_entiteit` varchar(255) DEFAULT NULL,
 			  `so_toepassingsmanager` varchar(255) DEFAULT NULL,
 			  `vo_applicatiebeheerder` varchar(255) DEFAULT NULL,
-			  `complexiteit` double DEFAULT NULL,
+			  `assessment` double DEFAULT NULL,
 			  `migratie` double DEFAULT NULL,
 			  `totale_kost` double DEFAULT NULL,
 			  `msgstr` text,
@@ -442,7 +442,7 @@ foreach my $record (@$ref) {
 	$sw_cnt_bou = 0;
 	$job_cnt = 0;
 	$job_cnt_bou = 0;
-	$complexiteit = 0;
+	$assessment = 0;
 	$migratie = 0;
 	my $cmdb_id      = $$record{'cmdb_id'};
 	my $naam         = $$record{'naam'};

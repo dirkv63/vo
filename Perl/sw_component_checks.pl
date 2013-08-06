@@ -43,10 +43,10 @@ No inline options are available. There is a properties\vo.ini file that contains
 ########### 
 
 my ($log, $cfg, $dbh, $top_ci, $msg, @msgs, $computer, $cluster, $connections, %states);
-my (%migratiekost, %complexiteitkost);
+my (%migratiekost, %assessmentkost);
 my @fields = qw (sw_id sw_naam sw_type sw_categorie 
                  comp_id comp_naam comp_type comp_categorie 
-				 connections migratie complexiteit msgstr 
+				 connections migratie assessment msgstr 
 				 status_not_defined status_buiten_gebruik status_in_gebruik
 				 status_in_stock status_nieuw status_not_niet_in_gebruik);
 
@@ -207,7 +207,7 @@ sub get_ci {
 
 sub save_results {
 	my ($sw_id, $comp_id, $msgref) = @_;
-	my ($migratie, $complexiteit, $comp_type_key);
+	my ($migratie, $assessment, $comp_type_key);
 	my ($sw_naam, $sw_type, $sw_categorie) = get_ci($sw_id);
 	my ($comp_naam, $comp_type, $comp_categorie) = get_ci($comp_id);
 	unless (defined $comp_id) {
@@ -228,11 +228,11 @@ sub save_results {
 		$log->warn("Migratiekosten voor $sw_type $sw_categorie $comp_type niet gevonden");
 		$migratie = 0;
 	}
-	if (defined $complexiteitkost{$kostkey}) {
-		$complexiteit = $complexiteitkost{$kostkey};
+	if (defined $assessmentkost{$kostkey}) {
+		$assessment = $assessmentkost{$kostkey};
 	} else {
 		$log->warn("Complexiteitkosten voor $sw_type $sw_categorie $comp_type niet gevonden");
-		$complexiteit = 0;
+		$assessment = 0;
 	}
 	# Collect states
 	my ($status_not_defined, $status_buiten_gebruik, $status_in_gebruik,
@@ -335,7 +335,7 @@ $query = "CREATE TABLE IF NOT EXISTS `sw_checks` (
 			  `comp_type` varchar(255) DEFAULT NULL,
 			  `comp_categorie` varchar(255) DEFAULT NULL,
 			  `connections` int(11) DEFAULT NULL,
-			  `complexiteit` double DEFAULT NULL,
+			  `assessment` double DEFAULT NULL,
 			  `migratie` double DEFAULT NULL,
 			  `msgstr` text,
 			  `status_not_defined` int(11) DEFAULT NULL,
@@ -373,8 +373,8 @@ foreach my $record (@$ref) {
 	my $kostkey      = $ci_type . $ci_categorie . $computertype;
 	if (trim(lc($element)) eq "migratie") {
 		$migratiekost{$kostkey} = $waarde;
-	} elsif (trim(lc($element)) eq "complexiteit") {
-		$complexiteitkost{$kostkey} = $waarde;
+	} elsif (trim(lc($element)) eq "assessment") {
+		$assessmentkost{$kostkey} = $waarde;
 	} else {
 		$log->warn("Element $element not known");
 	}

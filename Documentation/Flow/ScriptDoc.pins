@@ -1,4 +1,4 @@
-; Mon Aug 05 06:36:52 CEST 2013
+; Mon Aug 05 16:17:06 CEST 2013
 ; 
 ;+ (version "3.4.8")
 ;+ (build "Build 629")
@@ -9,7 +9,9 @@
 	(has_artifacts
 		[ScriptDoc_Class2]
 		[ScriptDoc_Class14]
-		[ScriptDoc_Class20])
+		[ScriptDoc_Class20]
+		[ScriptDoc_Class20001]
+		[ScriptDoc_Class20006])
 	(name "Datawarehouse"))
 
 ([ScriptDoc_Class1] of  Script
@@ -54,8 +56,8 @@
 	(is_read_from
 		[ScriptDoc_Class33]
 		[ScriptDoc_Class37]
-		[ScriptDoc_Class41]
-		[ScriptDoc_Class46])
+		[ScriptDoc_Class46]
+		[ScriptDoc_Class41])
 	(is_written_by
 		[ScriptDoc_Class10]
 		[ScriptDoc_Class25])
@@ -147,6 +149,72 @@
 	(is_part_of [ScriptDoc_Class0])
 	(is_read_from [ScriptDoc_Class19])
 	(name "CMWSI0520.xls"))
+
+([ScriptDoc_Class20001] of  Artifact
+
+	(description "Datacenter Inventory of Physical Servers with  the Functional attribute.\nThis table is missing omgeving (Production, Development, Test & Integration) and Dienstentype (BHV), therefore report 514 is also required.")
+	(is_part_of [ScriptDoc_Class0])
+	(is_read_from [ScriptDoc_Class20002])
+	(name "CMWSI0006.xls"))
+
+([ScriptDoc_Class20002] of  Script
+
+	(description "Perl script to lolad cmwsi0006 into MySQL and convert it into a table with unique CMDB IDs and Functional Names.")
+	(name "load_cmwsi0006.pl")
+	(reads_from [ScriptDoc_Class20001])
+	(script_type perl)
+	(writes_to
+		[ScriptDoc_Class20003]
+		[ScriptDoc_Class20004]))
+
+([ScriptDoc_Class20003] of  Artifact
+
+	(description "Temporary table, load from CWMSI0006.xls")
+	(is_part_of [ScriptDoc_Class4])
+	(is_written_by [ScriptDoc_Class20002])
+	(name "cmwsi0006_work"))
+
+([ScriptDoc_Class20004] of  Artifact
+
+	(description "Table with Physical Server IDs and Functional names. \nThis is required to analyze 'Isolated Servers'.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from [ScriptDoc_Class41])
+	(is_written_by [ScriptDoc_Class20002])
+	(name "cmwsi0006"))
+
+([ScriptDoc_Class20005] of  Script
+
+	(description "This script reads report CMWSI0514 to get 'Dienstentype' and 'Omgeving' from the Servers.")
+	(name "load_cmwsi0514.pl")
+	(reads_from
+		[ScriptDoc_Class20006]
+		[ScriptDoc_Class20007])
+	(script_type perl)
+	(writes_to
+		[ScriptDoc_Class20007]
+		[ScriptDoc_Class20008]))
+
+([ScriptDoc_Class20006] of  Artifact
+
+	(description "Server list containing Dienstentype and Omgeving. The 'Functionele naam' is not inlcuded on this report, therefore report CMWSI0006 is also required.\nNote that 'Dienstentype' is not unique, since some old records are included as well in the report. However by filtering on the location, then there is only one record per CI Type.")
+	(is_part_of [ScriptDoc_Class0])
+	(is_read_from [ScriptDoc_Class20005])
+	(name "CMWSI0514.xls"))
+
+([ScriptDoc_Class20007] of  Artifact
+
+	(description "Import from cmwsi0514 excel sheet.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from [ScriptDoc_Class20005])
+	(is_written_by [ScriptDoc_Class20005])
+	(name "cmwsi0514_work"))
+
+([ScriptDoc_Class20008] of  Artifact
+
+	(description "Table with servers from the Boudewijn and with 'Dienstentype' and 'omgeving' as attribute.")
+	(is_read_from [ScriptDoc_Class41])
+	(is_written_by [ScriptDoc_Class20005])
+	(name "cmwsi0514"))
 
 ([ScriptDoc_Class21] of  Artifact
 
@@ -325,7 +393,10 @@
 		[ScriptDoc_Class42]
 		[ScriptDoc_Class47]
 		[ScriptDoc_Class43]
-		[ScriptDoc_Class10001])
+		[ScriptDoc_Class10001]
+		[ScriptDoc_Class20004]
+		[ScriptDoc_Class20003]
+		[ScriptDoc_Class20007])
 	(name "vo"))
 
 ([ScriptDoc_Class40] of  Artifact
@@ -342,7 +413,9 @@
 	(reads_from
 		[ScriptDoc_Class9]
 		[ScriptDoc_Class11]
-		[ScriptDoc_Class17])
+		[ScriptDoc_Class17]
+		[ScriptDoc_Class20004]
+		[ScriptDoc_Class20008])
 	(script_type perl)
 	(writes_to
 		[ScriptDoc_Class42]
@@ -453,7 +526,7 @@
 	(is_read_from
 		[ScriptDoc_Class33]
 		[ScriptDoc_Class37]
-		[ScriptDoc_Class41]
-		[ScriptDoc_Class46])
+		[ScriptDoc_Class46]
+		[ScriptDoc_Class41])
 	(is_written_by [ScriptDoc_Class8])
 	(name "component"))
