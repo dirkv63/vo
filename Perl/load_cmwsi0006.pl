@@ -211,7 +211,7 @@ unless (do_stmt($dbh, $query)) {
 $query = "CREATE TABLE cmwsi0006
 		  SELECT distinct `CMDB referentie` as cmdb_id, 
 				 `Systeemnaam` as naam, 
-				 `Kenmerk` as functionele_naam,
+				 `Kenmerk` as kenmerk,
 				 `Serienummer server` as serienummer 
 		  FROM `cmwsi0006_work`";
 unless (do_stmt($dbh, $query)) {

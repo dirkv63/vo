@@ -4,16 +4,6 @@ system_checks.pl - Checks the Computersystems.
 
 =head1 VERSION HISTORY
 
-version 1.1 06 August 2013 DV
-
-=over 4
-
-=item *
-
-This script will collect system information and propagate attributes up the system chain, but it will not attempt to calculate migration costs. The script system_cost.pl is introduced to consolidate migration cost calculation.
-
-=back
-
 version 1.0 29 July 2013 DV
 
 =over 4
@@ -65,7 +55,11 @@ my (%computer_uitdovend, %component_uitdovend, %os_uitdovend);
 my (%computer_uitgedoofd, %component_uitgedoofd, %os_uitgedoofd);
 my @fields = qw (cmdb_id naam ci_type ci_categorie locatie 
                  sw_cnt job_cnt 
-				 connections msgstr
+				 connections msgstr omgeving dienstentype 
+				 kenmerk functionele_naam
+				 financieel_beheerder eigenaar
+				 computer_uitdovend_val computer_uitgedoofd_val
+				 os_uitdovend_val os_uitgedoofd_val
 				 status_not_defined status_buiten_gebruik status_in_gebruik
 				 status_in_stock status_nieuw status_not_niet_in_gebruik);
 
@@ -165,6 +159,24 @@ sub get_eosl_os {
 			$os_uitgedoofd{$cmdb_id} = $uitgedoofd_datum;
 		}
 	}
+}
+
+sub get_eosl_ci($) {
+	my ($cmdb_id) = @_;
+	my ($computer_uitdovend_val, $computer_uitgedoofd_val, $os_uitdovend_val, $os_uitgedoofd_val);
+	if (defined $computer_uitdovend{$cmdb_id}) {
+		$computer_uitdovend_val = $computer_uitdovend{$cmdb_id};
+	}
+	if (defined $computer_uitgedoofd{$cmdb_id}) {
+		$computer_uitgedoofd_val = $computer_uitgedoofd{$cmdb_id};
+	}
+	if (defined $os_uitdovend{$cmdb_id}) {
+		$os_uitdovend_val = $os_uitdovend{$cmdb_id};
+	}
+	if (defined $os_uitgedoofd{$cmdb_id}) {
+		$os_uitgedoofd_val = $os_uitgedoofd{$cmdb_id};
+	}
+	return ($computer_uitdovend_val, $computer_uitgedoofd_val, $os_uitdovend_val, $os_uitgedoofd_val);
 }
 
 sub get_minimum($$) {
@@ -338,12 +350,51 @@ sub go_up($$$) {
 	}
 }
 
+sub get_attribs($$) {
+	my ($cmdb_id, $full_name) = @_;
+	my $query = "SELECT a.dienstentype, a.omgeving, 
+						a.financieel_beheerder, a.eigenaar,
+						b.kenmerk 
+				 FROM cmwsi0514 a, cmwsi0006 b
+				 WHERE a.cmdb_id = $cmdb_id
+				   AND b.cmdb_id = $cmdb_id";
+	my $ref = do_select($dbh, $query);
+	unless (defined $ref) {
+		$log->error("Could not get results from querying cmwsi0006 and cmwsi0514");
+		return ("","","", "", "", "");
+	}
+	my $record = @$ref[0];
+	my $dienstentype = $$record{dienstentype} || "";
+	my $omgeving = $$record{omgeving} || "";
+	my $kenmerk = $$record{kenmerk} || "";
+	my $financieel_beheerder = $$record{financieel_beheerder} || "";
+	my $eigenaar = $$record{eigenaar} || "";
+	my $functionele_naam = "";
+	# Is there a functionele naam attached to the name?
+	if (index($full_name, "(") > -1) {
+		# OK - Extract part between brackets as functionele_naam
+		$functionele_naam = trim(substr($full_name, index($full_name, "(")+1));
+		$functionele_naam = substr($functionele_naam, 0, -1);
+	}
+	return ($dienstentype, $omgeving, $kenmerk, $financieel_beheerder, $eigenaar, $functionele_naam);
+}
+
 sub save_results {
 	my ($cmdb_id, $naam, $ci_type, $ci_categorie, $locatie) = @_;
 	# Remove duplicates from msgs array
 	my %msghash = map { $_, 1} @msgs;
 	my $msgstr = join ("\n", keys %msghash);
 	# Locatie is defined only for Boudewijn Computerzaal
+	my $dienstentype = "";
+	my $omgeving = "";
+	my $kenmerk = "";
+	my $financieel_beheerder = "";
+	my $eigenaar = "";
+	my $functionele_naam = "";
+	if (defined $locatie) {
+		($dienstentype, $omgeving, $kenmerk, $financieel_beheerder, $eigenaar, $functionele_naam) = get_attribs($cmdb_id, $naam);
+	}
+	my ($computer_uitdovend_val, $computer_uitgedoofd_val, $os_uitdovend_val, $os_uitgedoofd_val) = get_eosl_ci($cmdb_id);
 	# Collect states
 	my ($status_not_defined, $status_buiten_gebruik, $status_in_gebruik,
 		$status_in_stock, $status_nieuw, $status_not_niet_in_gebruik);
@@ -443,6 +494,16 @@ $query = "CREATE TABLE IF NOT EXISTS `system_checks` (
 			  `job_cnt` double DEFAULT NULL,
 			  `connections` double DEFAULT NULL,
 			  `msgstr` text,
+			  `omgeving` varchar(255) DEFAULT NULL,
+			  `dienstentype` varchar(255) DEFAULT NULL,
+			  `kenmerk` varchar(255) DEFAULT NULL,
+			  `functionele_naam` varchar(255) DEFAULT NULL,
+			  `financieel_beheerder` varchar(255) DEFAULT NULL,
+			  `eigenaar` varchar(255) DEFAULT NULL,
+  			  `computer_uitdovend_val` date DEFAULT NULL,
+			  `computer_uitgedoofd_val` date DEFAULT NULL,
+			  `os_uitdovend_val` date DEFAULT NULL,
+			  `os_uitgedoofd_val` date DEFAULT NULL,
 			  `status_not_defined` int(11) DEFAULT NULL,
 			  `status_buiten_gebruik` int(11) DEFAULT NULL,
 			  `status_in_gebruik` int(11) DEFAULT NULL,
@@ -509,6 +570,26 @@ if (defined $nr_lines) {
 	$log->info("$nr_lines lines exported into excel file");
 } else {
 	$log->fatal("Could not create excel report for table system_checks");
+	exit_application(1);
+}
+
+# Now get excel with Servers to be migrated only
+$query = "CREATE TEMPORARY TABLE server_migrate
+		  SELECT * FROM system_checks
+		  WHERE length(locatie) > 5
+		    AND sw_cnt  = 0
+			AND job_cnt = 0";
+unless (do_stmt($dbh, $query)) {
+	$log->fatal("Could not create migration report");
+	exit_application(1);
+}
+
+$log->info("Export server_migrate to excel");
+$nr_lines = write_table($dbh, "server_migrate",\@fields);
+if (defined $nr_lines) {
+	$log->info("$nr_lines lines exported into excel file");
+} else {
+	$log->fatal("Could not create excel report for table server_migrate");
 	exit_application(1);
 }
 

@@ -230,7 +230,6 @@ $query = "CREATE TABLE IF NOT EXISTS `component` (
 			  `eigenaar_entiteit` varchar(255) DEFAULT NULL,
 			  `fin_beleidsdomein` varchar(255) DEFAULT NULL,
 			  `fin_entiteit` varchar(255) DEFAULT NULL,
-			  `functionele_naam` varchar(255) DEFAULT NULL,
 			  `hw_sw_flag` varchar(255) DEFAULT NULL,
 			  `locatie` varchar(255) DEFAULT NULL,
 			  `naam` varchar(255) DEFAULT NULL,

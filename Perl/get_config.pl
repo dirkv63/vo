@@ -150,7 +150,6 @@ sub get_node_attr($) {
 	my $bt_nummer = $$arrayhdl{bt_nummer} || "";
 	my $ci_categorie = $$arrayhdl{ci_categorie} || "";
 	my $ci_type = $$arrayhdl{ci_type} || "";
-	my $functionele_naam = $$arrayhdl{functionele_naam} || "";
 	my $locatie = $$arrayhdl{locatie} || "";
 	my $naam = $$arrayhdl{naam} || "";
 	my $omgeving = $$arrayhdl{omgeving} || "";
@@ -161,7 +160,6 @@ sub get_node_attr($) {
 	my $status = $$arrayhdl{status} || "";
 	my $versie = $$arrayhdl{versie} || "";
 	my $naam_id = "$naam ($cmdb_id)";
-	# my @attrib_arr = ($naam_id, $ci_categorie, $ci_type, $bt_nummer, $functionele_naam, $locatie, $omgeving, $os, $os_versie, $producent, $product, $versie, $status);
 	my @attrib_arr = ($naam_id, $ci_categorie, $ci_type, $locatie, "$os $os_versie", "$producent $product $versie", $status);
 	if (defined $get_eosl) {
 		my ($uitdovend, $uitgedoofd) = get_eosl($cmdb_id);
