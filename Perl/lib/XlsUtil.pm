@@ -121,6 +121,50 @@ sub transform_datetime {
     return $value;
 }
 
+sub transform_date {
+    my $cell = shift;
+    my $type_info = shift;
+	my $log = get_logger();
+
+    my ($type, $format, $value, $unfor) = @$cell;
+
+    return undef unless defined $value;
+    $value =~ s/\s*$//;
+    return undef if ($value eq '');
+
+	# $log->trace(Dumper($cell));
+
+	# if ($value ne $unfor) {
+	#    print "value = $value\n";
+	#    print "unfor = $unfor\n";
+	#}
+
+    if ($type =~ m/^text$/i) {
+      $value =~ s/\s//g;
+
+      # '8/20/2004' (mm-dd-yyyy)
+      if ($value =~ m/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/) {
+        $value = sprintf("%04d-%02d-%02d", $3, $1, $2);
+      } elsif ($value =~ m/^(\d{4})-(\d{1,2})-(\d{1,2})$/) {
+		# 2013-07-18 (yyyy-mm-dd)
+		# $value = sprintf("%04d-%02d-%02d", $1, $2, $3); 
+		# No need to convert, $value is already in required format
+	  } else {
+        my $data_log = Log::Log4perl->get_logger('Data');
+        $data_log->error("No conversion for date ($value)");
+        return undef;
+      }
+
+    }
+    elsif (($type =~ m/^date$/i) || ($type =~ m/^numeric$/i)) {
+
+      # default date format MySQL : YYYY-MM-DD HH:MI:SS
+      $value = ExcelFmt('yyyy-mm-dd hh:mm:ss', $unfor);
+    }
+
+    return $value;
+}
+
 # ==========================================================================
 
 sub transform_varchar {
@@ -564,6 +608,8 @@ sub import_sheet {
 
     if ($type eq 'datetime') {
       push @$transform_sub, \&transform_datetime;
+    } elsif ($type eq 'date') {
+      push @$transform_sub, \&transform_date;
     } elsif ($type eq 'double') {
       push @$transform_sub, \&transform_double;
     } elsif ($type =~ m/^varchar\(/) {
@@ -572,7 +618,8 @@ sub import_sheet {
       push @$transform_sub, \&transform_int;
     }
     else {
-      die "unknown type $type\n";
+      $log->fatal("unknown type $type\n");
+	  die;
     }
   }
 
