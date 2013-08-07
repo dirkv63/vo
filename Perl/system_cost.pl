@@ -1,6 +1,6 @@
 =head1 NAME
 
-system_checks.pl - Checks the Computersystems.
+system_cost.pl - Checks the Computersystems.
 
 =head1 VERSION HISTORY
 
@@ -26,11 +26,11 @@ On path to (software) component, remember and propagate eosl variables. Remember
 
 =head1 SYNOPSIS
 
- system_checks.pl
+ system_cost.pl
 
- system_checks -h	Usage
- system_checks -h 1  Usage and description of the options
- system_checks -h 2  All documentation
+ system_cost -h	Usage
+ system_cost -h 1  Usage and description of the options
+ system_cost -h 2  All documentation
 
 =head1 OPTIONS
 
@@ -48,20 +48,13 @@ No inline options are available. There is a properties\vo.ini file that contains
 # Variables
 ########### 
 
-my ($log, $cfg, $dbh, @msgs, $connections, %states);
-my ($sw_cnt, $job_cnt, %locations);
-# eosl variables
-my (%computer_uitdovend, %component_uitdovend, %os_uitdovend);
-my (%computer_uitgedoofd, %component_uitgedoofd, %os_uitgedoofd);
-my @fields = qw (cmdb_id naam ci_type ci_categorie locatie 
-                 sw_cnt job_cnt 
-				 connections msgstr omgeving dienstentype 
-				 kenmerk functionele_naam
-				 financieel_beheerder eigenaar
-				 computer_uitdovend_val computer_uitgedoofd_val
-				 os_uitdovend_val os_uitgedoofd_val
-				 status_not_defined status_buiten_gebruik status_in_gebruik
-				 status_in_stock status_nieuw status_not_niet_in_gebruik);
+my ($log, $cfg, $dbh, @fields, @vals, %kost, @functies);
+my @fields_check = qw (cmdb_id naam ci_type ci_categorie locatie connections 
+				       status_not_defined status_buiten_gebruik status_in_gebruik
+				       status_in_stock status_nieuw status_not_niet_in_gebruik);
+my @fields_excel = qw (cmdb_id naam financieel_beheerder eigenaar 
+					   dienstentype omgeving functionele_naam kenmerk
+					   migratiekost connections ci_type ci_categorie locatie);
 
 #####
 # use
@@ -115,243 +108,22 @@ sub trim {
     return wantarray ? @out : $out[0];
 }
 
-sub get_eosl($) {
+sub get_cost($) {
+	my ($kenmerk) = @_;
+	my $cost = 0;
+	my @chars = split /;/, $kenmerk;
+	foreach my $label (@chars) {
+		$label = lc(trim($label));
+		if (defined $kost{$label}) {
+			$cost += $kost{$label};
+		}
+	}
+	return $cost;
+}
+
+sub get_attribs($) {
 	my ($cmdb_id) = @_;
-	my $query  = "SELECT uitdovend_datum, uitgedoofd_datum
-				  FROM eosl
-				  WHERE cmdb_id = $cmdb_id";
-	my $ref = do_select($dbh, $query);
-	my $uitdovend = "";
-	my $uitgedoofd = "";
-	if (defined $ref) {
-		my $record = @$ref[0];
-		$uitdovend = $$record{uitdovend_datum} || "";
-		$uitgedoofd = $$record{uitgedoofd_datum} || "";
-	}
-	return ($uitdovend, $uitgedoofd);
-}
-
-sub get_eosl_os {
-	my $query = "SELECT r.cmdb_id_target as cmdb_id, 
-						e.uitdovend_datum as uitdovend_datum, 
-						e.uitgedoofd_datum as uitgedoofd_datum
-				 FROM relations r, component c, eosl e
-				 WHERE r.relation = 'is afhankelijk van'
-				   AND r.cmdb_id_source = c.cmdb_id
-				   AND c.ci_type = 'SW PROD INSTALL. OP SYST.INFRA.'
-				   AND c.ci_categorie = 'OPERATING SYSTEEM'
-				   AND r.cmdb_id_source = e.cmdb_id
-				   AND (NOT ((e.uitdovend_datum is null) AND
-							 (e.uitgedoofd_datum is null)))";
-	my $ref = do_select($dbh, $query);
-	unless (defined $ref) {
-		$log->fatal("Could not get EOSL data for OS");
-		exit_application(1);
-	}
-	foreach my $record (@$ref) {
-		my $cmdb_id = $$record{cmdb_id};
-		my $uitdovend_datum = $$record{uitdovend_datum} || "";
-		my $uitgedoofd_datum = $$record{uitgedoofd_datum} || "";
-		if (length($uitdovend_datum) > 4) {
-			$os_uitdovend{$cmdb_id} = $uitdovend_datum;
-		}
-		if (length($uitgedoofd_datum) > 4) {
-			$os_uitgedoofd{$cmdb_id} = $uitgedoofd_datum;
-		}
-	}
-}
-
-sub get_eosl_ci($) {
-	my ($cmdb_id) = @_;
-	my ($computer_uitdovend_val, $computer_uitgedoofd_val, $os_uitdovend_val, $os_uitgedoofd_val);
-	if (defined $computer_uitdovend{$cmdb_id}) {
-		$computer_uitdovend_val = $computer_uitdovend{$cmdb_id};
-	}
-	if (defined $computer_uitgedoofd{$cmdb_id}) {
-		$computer_uitgedoofd_val = $computer_uitgedoofd{$cmdb_id};
-	}
-	if (defined $os_uitdovend{$cmdb_id}) {
-		$os_uitdovend_val = $os_uitdovend{$cmdb_id};
-	}
-	if (defined $os_uitgedoofd{$cmdb_id}) {
-		$os_uitgedoofd_val = $os_uitgedoofd{$cmdb_id};
-	}
-	return ($computer_uitdovend_val, $computer_uitgedoofd_val, $os_uitdovend_val, $os_uitgedoofd_val);
-}
-
-sub get_minimum($$) {
-	my ($val1, $val2) = @_;
-	if ((length($val1) > 4) && (defined $val2)) {
-		my $int_val1 = $val1;
-		my $int_val2 = $val2;
-		$int_val1 =~ s/\-//g;
-		$int_val2 =~ s/\-//g;
-		if ($int_val1 < $int_val2) {
-			return $val1;
-		} else {
-			return $val2;
-		}
-	} elsif ((length($val1) > 4) && (not(defined $val2))) {
-		return $val1;
-	} elsif ((not(length($val1) > 4)) && (defined $val2)) {
-		return $val2;
-	} elsif ((not(length($val1) > 4)) && (not(defined $val2))) {
-		return "";
-	}
-}
-
-=pod
-
-=head2 Handle EOSL data
-
-Get EOSL data for this component. 
-
-If category = 'FYSIEKE COMPUTER' then 
-verify if there is a value already
-if yes, print error message.
-Keep oldest date.
-If type = 'SW PROD...', but not OS:
-keep oldest value.
-If type = 'SW PROD...' and OS
-ignore
-IF other type
-print error message.
-
-Be careful: keep track of values within recursive path, but do not share values between recursive paths.
-
-=cut
-
-sub handle_eosl_data($$$$) {
-	my ($cmdb_id_prev, $cmdb_id, $ci_type, $ci_categorie) = @_;
-	my $uitdovend = "";
-    my $uitgedoofd= "";
-	if (($ci_type eq "FYSIEKE COMPUTER") ||
-		(($ci_type eq "SW PROD INSTALL. OP SYST.INFRA.") && (not($ci_categorie eq "OPERATING SYSTEEM")))) {
-		($uitdovend, $uitgedoofd) = get_eosl($cmdb_id);
-	}
-	# Handle Fysieke Computer
-	if ($ci_type eq "FYSIEKE COMPUTER") {
-		my $computer_uitdovend_val = get_minimum($uitdovend, $computer_uitdovend{$cmdb_id_prev});
-		my $computer_uitgedoofd_val = get_minimum($uitgedoofd, $computer_uitgedoofd{$cmdb_id_prev});
-		if (length($computer_uitdovend_val) > 4) {
-			$computer_uitdovend{$cmdb_id} = $computer_uitdovend_val;
-		}
-		if (length($computer_uitgedoofd_val) > 4) {
-			$computer_uitgedoofd{$cmdb_id} = $computer_uitgedoofd_val;
-		}
-	}
-	# Handle Component
-	if (($ci_type eq "SW PROD INSTALL. OP SYST.INFRA.") && (not($ci_categorie eq "OPERATING SYSTEEM"))) {
-		my $component_uitdovend_val = get_minimum($uitdovend, $component_uitdovend{$cmdb_id_prev});
-		my $component_uitgedoofd_val = get_minimum($uitgedoofd, $component_uitgedoofd{$cmdb_id_prev});
-		if (length($component_uitdovend_val) > 4) {
-			$component_uitdovend{$cmdb_id} = $component_uitdovend_val;
-		}
-		if (length($component_uitgedoofd_val) > 4) {
-			$component_uitgedoofd{$cmdb_id} = $component_uitgedoofd_val;
-		}
-	}
-	# Now propagate values in all cases
-	if (not(defined $computer_uitdovend{$cmdb_id})) {
-		if (defined $computer_uitdovend{$cmdb_id_prev}) {
-			$computer_uitdovend{$cmdb_id} = $computer_uitdovend{$cmdb_id_prev};
-		}
-	}
-	if (not(defined $component_uitdovend{$cmdb_id})) {
-		if (defined $component_uitdovend{$cmdb_id_prev}) {
-			$component_uitdovend{$cmdb_id} = $component_uitdovend{$cmdb_id_prev};
-		}
-	}
-	if (not(defined $os_uitdovend{$cmdb_id})) {
-		if (defined $os_uitdovend{$cmdb_id_prev}) {
-			$os_uitdovend{$cmdb_id} = $os_uitdovend{$cmdb_id_prev};
-		}
-	}
-	if (not(defined $computer_uitgedoofd{$cmdb_id})) {
-		if (defined $computer_uitgedoofd{$cmdb_id_prev}) {
-			$computer_uitgedoofd{$cmdb_id} = $computer_uitgedoofd{$cmdb_id_prev};
-		}
-	}
-	if (not(defined $component_uitgedoofd{$cmdb_id})) {
-		if (defined $component_uitgedoofd{$cmdb_id_prev}) {
-			$component_uitgedoofd{$cmdb_id} = $component_uitgedoofd{$cmdb_id_prev};
-		}
-	}
-	if (not(defined $os_uitgedoofd{$cmdb_id})) {
-		if (defined $os_uitgedoofd{$cmdb_id_prev}) {
-			$os_uitgedoofd{$cmdb_id} = $os_uitgedoofd{$cmdb_id_prev};
-		}
-	}
-}
-
-
-sub go_up($$$);
-
-=pod
-
-=head2 Check Systems
-
-Go UP the 'afhankelijk' chain until a CI from Component or Jobs type is found. 
-Warn if 'Toepassingomgeving' if found without Component. Also inform if 'Go Up' chain stops without having found a component.
-
-Don't go up to 'Operating Systeem' component.
-
-=cut
-
-sub go_up($$$) {
-	my ($cmdb_id, $naam, $location_comp) = @_;
-	my $query = "SELECT relation, cmdb_id_source, naam_source, ci_type_source,
-						ci_categorie, status, ci_class, locatie
-				 FROM relations, component
-				 WHERE cmdb_id_target = '$cmdb_id'
-				   AND cmdb_id_source = cmdb_id
-				   AND NOT (ci_categorie = 'OPERATING SYSTEEM')
-				   AND relation = 'is afhankelijk van'";
-	my $ref = do_select($dbh, $query);
-	# Always at least one result line expected
-	my $reccnt = @$ref;
-	if ($reccnt == 0) {
-		my $msg = "Unexpected end of path";
-		push @msgs, $msg;
-	}
-	foreach my $arrayhdl (@$ref) {
-		my $relation = $$arrayhdl{relation};
-		my $cmdb_id_source = $$arrayhdl{cmdb_id_source};
-		my $naam_source = $$arrayhdl{naam_source};
-		my $ci_type_source = $$arrayhdl{ci_type_source};
-		my $ci_categorie = $$arrayhdl{ci_categorie};
-		my $status = $$arrayhdl{status} || "not defined";
-		my $ci_class = $$arrayhdl{ci_class};
-		# Update status count and number of connections
-		$states{$status}++;
-		$connections++;
-		if (defined($location_comp)) {
-			$locations{$cmdb_id_source} = $location_comp;
-		}
-		handle_eosl_data($cmdb_id, $cmdb_id_source, $ci_type_source, $ci_categorie);
-		# Did I find a Software Component or Job?
-		my @sw_types = $cfg->val("TYPES", "sw_type");
-		my @job_types = $cfg->val("TYPES", "job_type");
-		# First find the Software Components
-		if (grep {lc($_) eq lc($ci_type_source)} @sw_types) {
-			$sw_cnt++;
-#			get_type($cmdb_id_target, "sw_type");
-		} elsif (grep {lc($_) eq lc($ci_type_source)} @job_types) {
-			$job_cnt++;
-		} elsif ((defined $ci_class) && (lc($ci_class) eq "toepassingcomponentinstallatie")) {
-			 # Path from Fysieke computer up to Application found without SW Component
-			 my $msg = "Path from Computer to Application without SW Component";
-			 push @msgs, $msg;
-		} else {
-			 # Check next level
-			 go_up($cmdb_id_source, $naam_source, $location_comp);
-
-		}
-	}
-}
-
-sub get_attribs($$) {
-	my ($cmdb_id, $full_name) = @_;
+	my @attribs = qw (dienstentype omgeving kenmerk financieel_beheerder eigenaar);
 	my $query = "SELECT a.dienstentype, a.omgeving, 
 						a.financieel_beheerder, a.eigenaar,
 						b.kenmerk 
@@ -361,78 +133,29 @@ sub get_attribs($$) {
 	my $ref = do_select($dbh, $query);
 	unless (defined $ref) {
 		$log->error("Could not get results from querying cmwsi0006 and cmwsi0514");
-		return ("","","", "", "", "");
+		return;
 	}
 	my $record = @$ref[0];
-	my $dienstentype = $$record{dienstentype} || "";
-	my $omgeving = $$record{omgeving} || "";
-	my $kenmerk = $$record{kenmerk} || "";
-	my $financieel_beheerder = $$record{financieel_beheerder} || "";
-	my $eigenaar = $$record{eigenaar} || "";
-	my $functionele_naam = "";
-	# Is there a functionele naam attached to the name?
-	if (index($full_name, "(") > -1) {
-		# OK - Extract part between brackets as functionele_naam
-		$functionele_naam = trim(substr($full_name, index($full_name, "(")+1));
-		$functionele_naam = substr($functionele_naam, 0, -1);
+	foreach my $field (@attribs) {
+		push @fields, $field;
+		push @vals, $$record{$field};
 	}
-	return ($dienstentype, $omgeving, $kenmerk, $financieel_beheerder, $eigenaar, $functionele_naam);
-}
-
-sub save_results {
-	my ($cmdb_id, $naam, $ci_type, $ci_categorie, $locatie) = @_;
-	# Remove duplicates from msgs array
-	my %msghash = map { $_, 1} @msgs;
-	my $msgstr = join ("\n", keys %msghash);
-	# Locatie is defined only for Boudewijn Computerzaal
-	my $dienstentype = "";
-	my $omgeving = "";
-	my $kenmerk = "";
-	my $financieel_beheerder = "";
-	my $eigenaar = "";
-	my $functionele_naam = "";
-	if (defined $locatie) {
-		($dienstentype, $omgeving, $kenmerk, $financieel_beheerder, $eigenaar, $functionele_naam) = get_attribs($cmdb_id, $naam);
+	my $migratiekost = 0;
+	if (defined $$record{kenmerk}) {
+		$migratiekost = get_cost($$record{kenmerk});
 	}
-	my ($computer_uitdovend_val, $computer_uitgedoofd_val, $os_uitdovend_val, $os_uitgedoofd_val) = get_eosl_ci($cmdb_id);
-	# Collect states
-	my ($status_not_defined, $status_buiten_gebruik, $status_in_gebruik,
-		$status_in_stock, $status_nieuw, $status_not_niet_in_gebruik);
-	if (defined $states{'not defined'}) {
-		$status_not_defined = $states{'not defined'};
-	} else {
-		$status_not_defined = 0;
+	if ($migratiekost == 0) {
+		$migratiekost = $kost{default};
 	}
-	if (defined $states{'Buiten gebruik'}) {
-		$status_buiten_gebruik = $states{'Buiten gebruik'};
-	} else {
-		$status_buiten_gebruik = 0;
+	if (defined $$record{omgeving}) {
+		my $omgeving = $$record{omgeving};
+		if (($omgeving eq "Test") || ($omgeving eq "Ontwikkeling")) {
+			$migratiekost = sprintf("%.2f", $migratiekost / 3);
+		}
 	}
-	if (defined $states{'In gebruik'}) {
-		$status_in_gebruik = $states{'In gebruik'};
-	} else {
-		$status_in_gebruik = 0;
-	}
-	if (defined $states{'In stock bij klant'}) {
-		$status_in_stock = $states{'In stock bij klant'};
-	} else {
-		$status_in_stock = 0;
-	}
-	if (defined $states{'Nieuw'}) {
-		$status_nieuw = $states{'Nieuw'};
-	} else {
-		$status_nieuw = 0;
-	}
-	if (defined $states{'Nog niet in gebruik'}) {
-		$status_not_niet_in_gebruik = $states{'Nog niet in gebruik'};
-	} else {
-		$status_not_niet_in_gebruik = 0;
-	}
-	my (@vals) = map { eval ("\$" . $_ ) } @fields;
-	unless (create_record($dbh, "system_checks", \@fields, \@vals)) {
-		$log->fatal("Could not create record for $cmdb_id");
-		exit_application(1);
-	}
+	push @fields, "migratiekost";
+	push @vals, $migratiekost;
+	return;
 }
 
 ######
@@ -474,36 +197,30 @@ if ($log->is_trace()) {
 # Make database connection for vo database
 $dbh = db_connect("vo") or exit_application(1);
 
-$log->info("Preparing table system_checks");
-# Drop table system_checks if exists
-my $query = "DROP TABLE IF EXISTS system_checks";
+$log->info("Preparing table system_cost");
+# Drop table system_cost if exists
+my $query = "DROP TABLE IF EXISTS system_cost";
 unless (do_stmt($dbh, $query)) {
-	$log->fatal("Could not drop table system_checks, exiting...");
+	$log->fatal("Could not drop table system_cost, exiting...");
 	exit_application(1);
 }
 
-# CREATE table system_checks
-$query = "CREATE TABLE IF NOT EXISTS `system_checks` (
+# CREATE table system_cost
+$query = "CREATE TABLE IF NOT EXISTS `system_cost` (
 			  `ID` int(11) NOT NULL AUTO_INCREMENT,
 			  `cmdb_id` double DEFAULT NULL,
 			  `naam` varchar(255) DEFAULT NULL,
 			  `ci_type` varchar(255) DEFAULT NULL,
 			  `ci_categorie` varchar(255) DEFAULT NULL,
 			  `locatie` varchar(255) DEFAULT NULL,
-			  `sw_cnt` double DEFAULT NULL,
-			  `job_cnt` double DEFAULT NULL,
 			  `connections` double DEFAULT NULL,
-			  `msgstr` text,
+			  `migratiekost` double DEFAULT NULL,
 			  `omgeving` varchar(255) DEFAULT NULL,
 			  `dienstentype` varchar(255) DEFAULT NULL,
 			  `kenmerk` varchar(255) DEFAULT NULL,
 			  `functionele_naam` varchar(255) DEFAULT NULL,
 			  `financieel_beheerder` varchar(255) DEFAULT NULL,
 			  `eigenaar` varchar(255) DEFAULT NULL,
-  			  `computer_uitdovend_val` date DEFAULT NULL,
-			  `computer_uitgedoofd_val` date DEFAULT NULL,
-			  `os_uitdovend_val` date DEFAULT NULL,
-			  `os_uitgedoofd_val` date DEFAULT NULL,
 			  `status_not_defined` int(11) DEFAULT NULL,
 			  `status_buiten_gebruik` int(11) DEFAULT NULL,
 			  `status_in_gebruik` int(11) DEFAULT NULL,
@@ -513,189 +230,67 @@ $query = "CREATE TABLE IF NOT EXISTS `system_checks` (
 			  PRIMARY KEY (`ID`)
 		  ) ENGINE=MyISAM DEFAULT CHARSET=utf8";
 unless (do_stmt($dbh, $query)) {
-	$log->fatal("Could not create table system_checks, exiting...");
+	$log->fatal("Could not create table system_cost, exiting...");
 	exit_application(1);
 }
 
-# Assign EOSL for OS to Computersystem
-$log->info("Assign OS EOSL to computer systems");
-get_eosl_os;
-
-$log->info("Investigating Computer Systems");
-# Get all the 'Fysieke' Computers
-$query = "SELECT `cmdb_id`, `naam`, `ci_categorie`, `ci_type`, status, locatie
-			 FROM component
-			 WHERE ci_type = 'FYSIEKE COMPUTER'";
+# Collect Kostelementen for Servers
+$query = "SELECT functie, waarde 
+		  FROM kostelementen
+		  WHERE element = 'Server'";
 my $ref = do_select($dbh, $query);
-foreach my $record (@$ref) {
-	undef @msgs;
-	undef %states;
-	$connections = 0;
-	$sw_cnt = 0;
-	$job_cnt = 0;
-	my ($computer_uitdovend, $component_uitdovend, $os_uitdovend);
-	my ($computer_uitgedoofd, $component_uitgedoofd, $os_uitgedoofd);
-	my $cmdb_id      = $$record{'cmdb_id'};
-	my $naam         = $$record{'naam'};
-	my $ci_categorie = $$record{'ci_categorie'};
-	my $ci_type      = $$record{'ci_type'};
-	my $status		 = $$record{'status'} || "not defined";
-	my $locatie		 = $$record{'locatie'} || "not defined";
-	if ($locatie eq "Boudewijn - Brussel/-1C Computerzaal") {
-		# All CIs that are related to Boudewijn have entry in derived_locations table.
-		$locations{$cmdb_id} = $locatie;
-	} else {
-		undef $locatie;
-	}
-	# Initialize EOSL data
-	# Read data for Fysieke server
-	# If there is data for OS, then it was initialized in sub get_eosl_os
-	# There is not yet Component data.
-	my ($uitdovend, $uitgedoofd) = get_eosl($cmdb_id);
-	if (length($uitdovend) > 4) {
-		$computer_uitdovend{$cmdb_id} = $uitdovend;
-	}
-	if (length($uitgedoofd) > 4) {
-		$computer_uitgedoofd{$cmdb_id} = $uitgedoofd;
-	}
-	$states{$status}++;
-	go_up($cmdb_id, $naam, $locatie);
-	save_results($cmdb_id, $naam, $ci_type, $ci_categorie, $locatie);
-}
-
-# Export the results to excel files
-$log->info("Export system_checks to excel");
-my $nr_lines = write_table($dbh, "system_checks",\@fields);
-if (defined $nr_lines) {
-	$log->info("$nr_lines lines exported into excel file");
-} else {
-	$log->fatal("Could not create excel report for table system_checks");
+unless (defined $ref) {
+	$log->fatal("Could not collect kostelementen, exiting...");
 	exit_application(1);
 }
+foreach my $record (@$ref) {
+	my $functie = lc(trim($$record{functie}));
+	my $waarde = $$record{waarde};
+	$kost{$functie} = $waarde;
+	push @functies, $functie;
+}
 
-# Now get excel with Servers to be migrated only
-$query = "CREATE TEMPORARY TABLE server_migrate
-		  SELECT * FROM system_checks
+$log->info("Investigating Computer Systems in scope for Migration");
+# Get all the 'Fysieke' Computers
+$query = "SELECT * FROM system_checks
 		  WHERE length(locatie) > 5
 		    AND sw_cnt  = 0
 			AND job_cnt = 0";
-unless (do_stmt($dbh, $query)) {
-	$log->fatal("Could not create migration report");
-	exit_application(1);
+$ref = do_select($dbh, $query);
+foreach my $record (@$ref) {
+	undef @fields;
+	undef @vals;
+	my $cmdb_id      = $$record{'cmdb_id'};
+	my $full_name    = $$record{'naam'};
+	foreach my $field (@fields_check) {
+		my $val = $$record{$field};
+		push @fields, $field;
+		push @vals, $val;
+	}
+	# Get admin data
+	get_attribs($cmdb_id);
+	# Get functionele_naam
+	if (index($full_name, "(") > -1) {
+		# OK - Extract part between brackets as functionele_naam
+		my $functionele_naam = trim(substr($full_name, index($full_name, "(")+1));
+		$functionele_naam = substr($functionele_naam, 0, -1);
+		push @fields, "functionele_naam";
+		push @vals, $functionele_naam;
+	}
+	unless (create_record($dbh, "system_cost", \@fields, \@vals)) {
+		$log->fatal("Could not create record for $cmdb_id");
+		exit_application(1);
+	}
 }
 
-$log->info("Export server_migrate to excel");
-$nr_lines = write_table($dbh, "server_migrate",\@fields);
+# Export the results to excel files
+$log->info("Export system_cost to excel");
+my $nr_lines = write_table($dbh, "system_cost",\@fields_excel);
 if (defined $nr_lines) {
 	$log->info("$nr_lines lines exported into excel file");
 } else {
-	$log->fatal("Could not create excel report for table server_migrate");
+	$log->fatal("Could not create excel report for table system_cost");
 	exit_application(1);
-}
-
-# Save the locations
-$log->info("Write the Derived Locations to Table");
-# Drop table system_checks if exists
-$query = "DROP TABLE IF EXISTS derived_locations";
-unless (do_stmt($dbh, $query)) {
-	$log->fatal("Could not drop table derived_locations, exiting...");
-	exit_application(1);
-}
-
-# CREATE table derived_locations
-$query = "CREATE TABLE IF NOT EXISTS `derived_locations` (
-			  `ID` int(11) NOT NULL AUTO_INCREMENT,
-			  `cmdb_id` double DEFAULT NULL,
-			  `locatie` varchar(255) DEFAULT NULL,
-			  PRIMARY KEY (`ID`)
-		  ) ENGINE=MyISAM DEFAULT CHARSET=utf8";
-unless (do_stmt($dbh, $query)) {
-	$log->fatal("Could not create table derived_locations, exiting...");
-	exit_application(1);
-}
-while (my ($cmdb_id, $locatie) = each %locations) {
-	my @fields = qw (cmdb_id locatie);
-	my @vals = ($cmdb_id, $locatie);
-	unless (create_record($dbh, "derived_locations", \@fields, \@vals)) {
-		$log->fatal("Could not insert record into derived_locations");
-		exit_application(1);
-	}
-}
-
-# Save the derived_eosl
-$log->info("Write the Derived EOSL to Table");
-# Drop table derived_eosl if exists
-$query = "DROP TABLE IF EXISTS derived_eosl";
-unless (do_stmt($dbh, $query)) {
-	$log->fatal("Could not drop table derived_eosl, exiting...");
-	exit_application(1);
-}
-
-# CREATE table derived_locations
-$query = "CREATE TABLE IF NOT EXISTS `derived_eosl` (
-			  `ID` int(11) NOT NULL AUTO_INCREMENT,
-			  `cmdb_id` double DEFAULT NULL,
-			  `label` varchar(255) default NULL,
-			  `eosl_date` date DEFAULT NULL,
-			  PRIMARY KEY (`ID`)
-		  ) ENGINE=MyISAM DEFAULT CHARSET=utf8";
-unless (do_stmt($dbh, $query)) {
-	$log->fatal("Could not create table derived_locations, exiting...");
-	exit_application(1);
-}
-while (my ($cmdb_id, $eosl_date) = each %computer_uitdovend) {
-	my $label = "computer_uitdovend";
-	my @fields = qw (cmdb_id label eosl_date);
-	my @vals = ($cmdb_id, $label, $eosl_date);
-	unless (create_record($dbh, "derived_eosl", \@fields, \@vals)) {
-		$log->fatal("Could not insert record into derived_eosl");
-		exit_application(1);
-	}
-}
-while (my ($cmdb_id, $eosl_date) = each %computer_uitgedoofd) {
-	my $label = "computer_uitgedoofd";
-	my @fields = qw (cmdb_id label eosl_date);
-	my @vals = ($cmdb_id, $label, $eosl_date);
-	unless (create_record($dbh, "derived_eosl", \@fields, \@vals)) {
-		$log->fatal("Could not insert record into derived_eosl");
-		exit_application(1);
-	}
-}
-while (my ($cmdb_id, $eosl_date) = each %component_uitdovend) {
-	my $label = "component_uitdovend";
-	my @fields = qw (cmdb_id label eosl_date);
-	my @vals = ($cmdb_id, $label, $eosl_date);
-	unless (create_record($dbh, "derived_eosl", \@fields, \@vals)) {
-		$log->fatal("Could not insert record into derived_eosl");
-		exit_application(1);
-	}
-}
-while (my ($cmdb_id, $eosl_date) = each %component_uitgedoofd) {
-	my $label = "component_uitgedoofd";
-	my @fields = qw (cmdb_id label eosl_date);
-	my @vals = ($cmdb_id, $label, $eosl_date);
-	unless (create_record($dbh, "derived_eosl", \@fields, \@vals)) {
-		$log->fatal("Could not insert record into derived_eosl");
-		exit_application(1);
-	}
-}
-while (my ($cmdb_id, $eosl_date) = each %os_uitdovend) {
-	my $label = "os_uitdovend";
-	my @fields = qw (cmdb_id label eosl_date);
-	my @vals = ($cmdb_id, $label, $eosl_date);
-	unless (create_record($dbh, "derived_eosl", \@fields, \@vals)) {
-		$log->fatal("Could not insert record into derived_eosl");
-		exit_application(1);
-	}
-}
-while (my ($cmdb_id, $eosl_date) = each %os_uitgedoofd) {
-	my $label = "os_uitgedoofd";
-	my @fields = qw (cmdb_id label eosl_date);
-	my @vals = ($cmdb_id, $label, $eosl_date);
-	unless (create_record($dbh, "derived_eosl", \@fields, \@vals)) {
-		$log->fatal("Could not insert record into derived_eosl");
-		exit_application(1);
-	}
 }
 
 exit_application(0);

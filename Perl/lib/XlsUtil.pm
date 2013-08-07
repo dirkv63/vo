@@ -88,7 +88,7 @@ sub transform_datetime {
     $value =~ s/\s*$//;
     return undef if ($value eq '');
 
-	$log->trace(Dumper($cell));
+	# $log->trace(Dumper($cell));
 
 	# if ($value ne $unfor) {
 	#    print "value = $value\n";

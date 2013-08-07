@@ -1,4 +1,4 @@
-; Mon Aug 05 16:17:06 CEST 2013
+; Tue Aug 06 16:11:06 CEST 2013
 ; 
 ;+ (version "3.4.8")
 ;+ (build "Build 629")
@@ -69,7 +69,10 @@
 		[ScriptDoc_Class13]
 		[ScriptDoc_Class16])
 	(description "Groups the rls0013 report processing to get the EOSL information.")
+	(is_called_by [ScriptDoc_Class30001])
 	(name "rls0013.bat")
+	(runs_after [ScriptDoc_Class7])
+	(runs_before [ScriptDoc_Class20000])
 	(script_type bat))
 
 ([ScriptDoc_Class13] of  Script
@@ -150,6 +153,18 @@
 	(is_read_from [ScriptDoc_Class19])
 	(name "CMWSI0520.xls"))
 
+([ScriptDoc_Class20000] of  Script
+
+	(calls
+		[ScriptDoc_Class20002]
+		[ScriptDoc_Class20005])
+	(description "Consolidation for data load from reports CWMSI006 and CMWSI0514 to collect additional attributes for servers.")
+	(is_called_by [ScriptDoc_Class30001])
+	(name "cmwsi_sys.bat")
+	(runs_after [ScriptDoc_Class12])
+	(runs_before [ScriptDoc_Class30002])
+	(script_type bat))
+
 ([ScriptDoc_Class20001] of  Artifact
 
 	(description "Datacenter Inventory of Physical Servers with  the Functional attribute.\nThis table is missing omgeving (Production, Development, Test & Integration) and Dienstentype (BHV), therefore report 514 is also required.")
@@ -160,8 +175,10 @@
 ([ScriptDoc_Class20002] of  Script
 
 	(description "Perl script to lolad cmwsi0006 into MySQL and convert it into a table with unique CMDB IDs and Functional Names.")
+	(is_called_by [ScriptDoc_Class20000])
 	(name "load_cmwsi0006.pl")
 	(reads_from [ScriptDoc_Class20001])
+	(runs_before [ScriptDoc_Class20005])
 	(script_type perl)
 	(writes_to
 		[ScriptDoc_Class20003]
@@ -185,10 +202,12 @@
 ([ScriptDoc_Class20005] of  Script
 
 	(description "This script reads report CMWSI0514 to get 'Dienstentype' and 'Omgeving' from the Servers.")
+	(is_called_by [ScriptDoc_Class20000])
 	(name "load_cmwsi0514.pl")
 	(reads_from
 		[ScriptDoc_Class20006]
 		[ScriptDoc_Class20007])
+	(runs_after [ScriptDoc_Class20002])
 	(script_type perl)
 	(writes_to
 		[ScriptDoc_Class20007]
@@ -277,7 +296,8 @@
 	(is_read_from
 		[ScriptDoc_Class32]
 		[ScriptDoc_Class33]
-		[ScriptDoc_Class37])
+		[ScriptDoc_Class37]
+		[ScriptDoc_Class30003])
 	(is_written_by [ScriptDoc_Class30])
 	(name "kostelementen"))
 
@@ -296,6 +316,58 @@
 	(reads_from [ScriptDoc_Class31])
 	(script_type perl)
 	(writes_to [ScriptDoc_Class29]))
+
+([ScriptDoc_Class30001] of  Script
+
+	(calls
+		[ScriptDoc_Class20000]
+		[ScriptDoc_Class7]
+		[ScriptDoc_Class12]
+		[ScriptDoc_Class30002])
+	(description "Consolidation file to run all scripts.")
+	(name "run_all.bat")
+	(script_type bat))
+
+([ScriptDoc_Class30002] of  Script
+
+	(calls
+		[ScriptDoc_Class33]
+		[ScriptDoc_Class37]
+		[ScriptDoc_Class41]
+		[ScriptDoc_Class46]
+		[ScriptDoc_Class30003])
+	(description "When all reports from datawarehouse are loaded into MySQL the process_all bat file will call all perl scripts to process the data and generate reports.")
+	(is_called_by [ScriptDoc_Class30001])
+	(name "process_data.bat")
+	(runs_after [ScriptDoc_Class20000])
+	(script_type bat))
+
+([ScriptDoc_Class30003] of  Script
+
+	(description "This script collects isolated servers for the Boudewijn and will get relevant information related to migration.")
+	(is_called_by [ScriptDoc_Class30002])
+	(name "system_cost.pl")
+	(reads_from
+		[ScriptDoc_Class42]
+		[ScriptDoc_Class29])
+	(runs_after [ScriptDoc_Class46])
+	(script_type perl)
+	(writes_to
+		[ScriptDoc_Class30004]
+		[ScriptDoc_Class30005]))
+
+([ScriptDoc_Class30004] of  Artifact
+
+	(description "Attributes and cost for the isolated servers in the Boudewijn.")
+	(is_written_by [ScriptDoc_Class30003])
+	(name "system_cost"))
+
+([ScriptDoc_Class30005] of  Artifact
+
+	(description "Overview isolated servers from Boudewijn with attributes and migration costs.")
+	(is_part_of [ScriptDoc_Class36])
+	(is_written_by [ScriptDoc_Class30003])
+	(name "Server_Migratie.xls"))
 
 ([ScriptDoc_Class31] of  Artifact
 
@@ -316,11 +388,13 @@
 ([ScriptDoc_Class33] of  Script
 
 	(description "This script will verify assumptions for the Software Components and consolidate information per component into the table sw_checks.\nThe assumption is that each Software Component runs on a (Physical or Virtual) computer. The script will find the first computer, and remembers if it is a Physical or Virtual computer. If no computer can be found, a message is attached to the Software Component. \nVerification is done by walking down the 'afhankelijk van' relations, starting from Software Component types.")
+	(is_called_by [ScriptDoc_Class30002])
 	(name "sw_component_checks.pl")
 	(reads_from
 		[ScriptDoc_Class9]
 		[ScriptDoc_Class11]
 		[ScriptDoc_Class29])
+	(runs_before [ScriptDoc_Class37])
 	(script_type perl)
 	(writes_to
 		[ScriptDoc_Class34]
@@ -350,17 +424,21 @@
 		[ScriptDoc_Class40]
 		[ScriptDoc_Class45]
 		[ScriptDoc_Class48]
-		[ScriptDoc_Class10000])
+		[ScriptDoc_Class10000]
+		[ScriptDoc_Class30005])
 	(name "Deliverables"))
 
 ([ScriptDoc_Class37] of  Script
 
 	(description "This script will verify assumptions for the Jobs and consolidate information per component into the table job_checks.\nThe assumption is that each Job runs on a (Physical or Virtual) computer. The script will find the first computer, and remembers if it is a Physical or Virtual computer. If no computer can be found, a message is attached to the Software Component. \nVerification is done by walking down the 'afhankelijk van' relations, starting from Job Component types.\nCurrently sw_configuration_checks.pl and this script are very similar, but the expectation is that behaviour for both components may deviate.")
+	(is_called_by [ScriptDoc_Class30002])
 	(name "jobs_checks.pl")
 	(reads_from
 		[ScriptDoc_Class9]
 		[ScriptDoc_Class11]
 		[ScriptDoc_Class29])
+	(runs_after [ScriptDoc_Class33])
+	(runs_before [ScriptDoc_Class41])
 	(writes_to
 		[ScriptDoc_Class38]
 		[ScriptDoc_Class40]))
@@ -409,6 +487,7 @@
 ([ScriptDoc_Class41] of  Script
 
 	(description "There are a number of assumptions for the Computer Systems. This script will verify and document the assumptions.\nEach Computer must be connected to a Software Component. The relation between Software Components and the Applications is checked in another script.\nEach Physical Computer has a location. This location is upwards propagated to all components on the path, up till Software / Job Component.")
+	(is_called_by [ScriptDoc_Class30002])
 	(name "system_checks.pl")
 	(reads_from
 		[ScriptDoc_Class9]
@@ -416,6 +495,8 @@
 		[ScriptDoc_Class17]
 		[ScriptDoc_Class20004]
 		[ScriptDoc_Class20008])
+	(runs_after [ScriptDoc_Class37])
+	(runs_before [ScriptDoc_Class46])
 	(script_type perl)
 	(writes_to
 		[ScriptDoc_Class42]
@@ -427,6 +508,7 @@
 
 	(description "Consolidates counters per physical server. Consolidates status and error messages per server.")
 	(is_part_of [ScriptDoc_Class4])
+	(is_read_from [ScriptDoc_Class30003])
 	(is_written_by [ScriptDoc_Class41])
 	(name "system_checks"))
 
@@ -448,6 +530,7 @@
 ([ScriptDoc_Class46] of  Script
 
 	(description "An application is build up of components (Toepassingcomponentinstallatie) and / or Jobs. These are the building blocks of the application. For each application find the building blocks and read the component or job information from their tables. \nAdd potential migration and complexity costs for the application. For each component that is in Boudewijn, add the migration cost. If at least one component in Boudewijn is found, add sum of all complexity costs.")
+	(is_called_by [ScriptDoc_Class30002])
 	(name "apps_check.pl")
 	(reads_from
 		[ScriptDoc_Class9]
@@ -456,6 +539,8 @@
 		[ScriptDoc_Class34]
 		[ScriptDoc_Class38]
 		[ScriptDoc_Class10001])
+	(runs_after [ScriptDoc_Class41])
+	(runs_before [ScriptDoc_Class30003])
 	(script_type perl)
 	(writes_to
 		[ScriptDoc_Class47]
@@ -505,7 +590,9 @@
 		[ScriptDoc_Class8]
 		[ScriptDoc_Class10])
 	(description "Groups the cmwbt0011 processing to get the component and relation information.")
+	(is_called_by [ScriptDoc_Class30001])
 	(name "cmwbt0011.bat")
+	(runs_before [ScriptDoc_Class12])
 	(script_type bat))
 
 ([ScriptDoc_Class8] of  Script

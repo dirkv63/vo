@@ -54,6 +54,9 @@ my ($log, $dbh);
 # use
 #####
 
+use FindBin;
+use lib "$FindBin::Bin/lib";
+
 use warnings;			    # show warning messages
 use strict 'vars';
 use strict 'refs';

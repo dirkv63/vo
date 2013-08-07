@@ -11,3 +11,6 @@ perl system_checks.pl
 @echo Consolidation of all information into Application and migration report
 @echo **********************************************************************
 perl apps_check.pl
+@echo Collect information for Isolated Servers
+@echo ****************************************
+perl system_cost.pl

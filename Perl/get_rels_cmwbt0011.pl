@@ -62,6 +62,9 @@ my ($log, $dbh, %allvalues, %cmdb_id_hash, %naam_hash, %ci_type_hash, %relation_
 # use
 #####
 
+use FindBin;
+use lib "$FindBin::Bin/lib";
+
 use warnings;			    # show warning messages
 use strict 'vars';
 use strict 'refs';

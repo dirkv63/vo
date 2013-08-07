@@ -60,7 +60,7 @@ use strict 'subs';
 use Getopt::Std;		    # Handle input params
 use Pod::Usage;			    # Allow Usage information
 use DBI();
-use DbUtil qw (db_connect do_stmt);
+use DbUtil qw (db_connect do_stmt do_select singleton_select);
 
 use Spreadsheet::ParseExcel;
 use Spreadsheet::ParseExcel::Fmt8Bit;
@@ -100,6 +100,35 @@ sub trim {
     }
     return wantarray ? @out : $out[0];
 }
+
+=pod
+
+=head2 Remove Duplicates
+
+There are duplicate records in cmwsi0514. The assumption is that this is due to changes in BHV history. Therefore find duplicate records, find youngest BHV date and throw away records with older BHV start dates.
+
+=cut
+
+sub remove_duplicates($) {
+	my ($cmdb_id) = @_;
+	$log->trace("Remove duplicates for $cmdb_id");
+	# First get max 'Begindatum BHV'
+	my $query = "SELECT max(begindatum_bhv) as begindatum_bhv
+				   FROM cmwsi0514
+				   WHERE cmdb_id = $cmdb_id";
+	my $ref = singleton_select($dbh, $query);
+	my $record = @$ref[0];
+	my $begindatum_bhv = $$record{begindatum_bhv};
+	# Now throw away the duplicate records
+	$query = "DELETE FROM cmwsi0514
+			   WHERE cmdb_id = $cmdb_id
+			    AND (NOT (begindatum_bhv = '$begindatum_bhv'))";
+	unless (do_stmt($dbh, $query)) {
+		$log->fatal("Could not remove duplicate records from cmwsi0514");
+		exit_application(1);
+	}
+}
+
 
 ######
 # Main
@@ -215,10 +244,10 @@ $query = "CREATE TABLE cmwsi0514
 						  `ICT dienstverlener` as dienstverlener, 
 						  `Omgevingtype` as omgeving,
 						  `Financieel beheerder` as financieel_beheerder,
-						  `Eigenaar` as eigenaar
+						  `Eigenaar` as eigenaar,
+						  `Begindatum BHV` as begindatum_bhv
 		  FROM `cmwsi0514_work` 
-		  WHERE `Locatie` = 'Boudewijn - Brussel/-1C Computerzaal'
-		    AND `Einddatum BHV` is NULL";
+		  WHERE `Locatie` = 'Boudewijn - Brussel/-1C Computerzaal'";
 unless (do_stmt($dbh, $query)) {
 	$log->fatal("Could not create table cmwsi0514, exiting...");
 	exit_application(1);
@@ -228,6 +257,18 @@ $query = "ALTER TABLE  `cmwsi0514` ENGINE = MYISAM";
 unless (do_stmt($dbh, $query)) {
 	$log->fatal("Could not set cmswi0006 Engine to MyISAM");
 	exit_application(1);
+}
+
+$log->info("Remove duplicates from cmwsi0514");
+# Now find and remove duplicate cmdb_ids
+$query = "SELECT count(*) as cnt, cmdb_id
+			FROM cmwsi0514
+			GROUP BY cmdb_id
+			HAVING cnt > 1";
+my $ref = do_select($dbh, $query);
+foreach my $record (@$ref) {
+	my $cmdb_id = $$record{cmdb_id};
+	remove_duplicates($cmdb_id);
 }
 
 $query = "ALTER TABLE `cmwsi0514` ADD PRIMARY KEY(`cmdb_id`)";
