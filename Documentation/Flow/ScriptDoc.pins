@@ -1,4 +1,4 @@
-; Tue Aug 06 16:11:06 CEST 2013
+; Wed Aug 07 10:25:33 CEST 2013
 ; 
 ;+ (version "3.4.8")
 ;+ (build "Build 629")
@@ -56,8 +56,8 @@
 	(is_read_from
 		[ScriptDoc_Class33]
 		[ScriptDoc_Class37]
-		[ScriptDoc_Class46]
-		[ScriptDoc_Class41])
+		[ScriptDoc_Class41]
+		[ScriptDoc_Class46])
 	(is_written_by
 		[ScriptDoc_Class10]
 		[ScriptDoc_Class25])
@@ -297,7 +297,8 @@
 		[ScriptDoc_Class32]
 		[ScriptDoc_Class33]
 		[ScriptDoc_Class37]
-		[ScriptDoc_Class30003])
+		[ScriptDoc_Class30003]
+		[ScriptDoc_Class46])
 	(is_written_by [ScriptDoc_Class30])
 	(name "kostelementen"))
 
@@ -529,7 +530,7 @@
 
 ([ScriptDoc_Class46] of  Script
 
-	(description "An application is build up of components (Toepassingcomponentinstallatie) and / or Jobs. These are the building blocks of the application. For each application find the building blocks and read the component or job information from their tables. \nAdd potential migration and complexity costs for the application. For each component that is in Boudewijn, add the migration cost. If at least one component in Boudewijn is found, add sum of all complexity costs.")
+	(description "An application is build up of components (Toepassingcomponentinstallatie) and / or Jobs. These are the building blocks of the application. For each application find the building blocks and read the component or job information from their tables. \nAdd potential migration and complexity costs for the application. For each component that is in Boudewijn, add the migration cost. If at least one component in Boudewijn is found, add sum of all complexity costs.\nIn case EOSL paramaters are specified, then also add EOSL costs.")
 	(is_called_by [ScriptDoc_Class30002])
 	(name "apps_check.pl")
 	(reads_from
@@ -538,7 +539,8 @@
 		[ScriptDoc_Class43]
 		[ScriptDoc_Class34]
 		[ScriptDoc_Class38]
-		[ScriptDoc_Class10001])
+		[ScriptDoc_Class10001]
+		[ScriptDoc_Class29])
 	(runs_after [ScriptDoc_Class41])
 	(runs_before [ScriptDoc_Class30003])
 	(script_type perl)
@@ -613,7 +615,7 @@
 	(is_read_from
 		[ScriptDoc_Class33]
 		[ScriptDoc_Class37]
-		[ScriptDoc_Class46]
-		[ScriptDoc_Class41])
+		[ScriptDoc_Class41]
+		[ScriptDoc_Class46])
 	(is_written_by [ScriptDoc_Class8])
 	(name "component"))

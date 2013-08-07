@@ -59,13 +59,14 @@ No inline options are available. There is a properties\vo.ini file that contains
 my ($log, $cfg, $dbh, $top_ci, $msg, @msgs, $connections, %states);
 my ($comp, $no_comp, $sw_cnt, $sw_cnt_bou, $job_cnt, $job_cnt_bou, %locations);
 my ($assessment, $migratie, %eosl, %appl_eosl);
+my ($uitdovend_date, $uitdovend_waarde, $uitgedoofd_date, $uitgedoofd_waarde);
 my @eosl_labels = qw (computer_uitdovend computer_uitgedoofd
 					  os_uitdovend os_uitgedoofd
 					  component_uitdovend component_uitgedoofd);
 my @fields = qw (cmdb_id naam dienstentype eigenaar_beleidsdomein 
 		         eigenaar_entiteit fin_beleidsdomein fin_entiteit
 				 connections comp no_comp sw_cnt sw_cnt_bou 
-				 assessment migratie totale_kost 
+				 assessment migratie eosl_kost totale_kost 
 				 so_toepassingsmanager vo_applicatiebeheerder msgstr 
 				 computer_uitdovend computer_uitgedoofd
 				 os_uitdovend os_uitgedoofd
@@ -259,6 +260,52 @@ sub get_mgmt($) {
 	return ($so_toepassingsmanager, $vo_applicatiebeheerder);
 }
 
+sub get_eosl_factor() {
+	my $eosl_factor;
+	foreach my $label (@eosl_labels) {
+		if (defined $appl_eosl{$label}) {
+			if (index($label, "uitdovend") > -1) {
+				if ((defined $uitdovend_date) && (defined $uitdovend_waarde)) {
+					$eosl_factor = get_max_eosl($uitdovend_date, $uitdovend_waarde, $appl_eosl{$label}, $eosl_factor);
+				}
+			} elsif (index($label, "uitgedoofd") > -1) {
+				if ((defined $uitgedoofd_date) && (defined $uitgedoofd_waarde)) {
+					$eosl_factor = get_max_eosl($uitgedoofd_date, $uitgedoofd_waarde, $appl_eosl{$label}, $eosl_factor);
+				}
+			} else {
+				$log->warn("Found label $label in eosl_labels array, don't know what to do with it");
+			}
+		}
+	}
+	if (not defined $eosl_factor) {
+		$eosl_factor = 0;
+	}
+	return $eosl_factor;
+}
+
+sub get_max_eosl($$$$) {
+	my ($cut_date, $cut_waarde, $appl_date, $eosl_factor) = @_;
+	my $val1 = $cut_date;
+	my $val2 = $appl_date;
+	my $int_cut_date = $cut_date;
+	my $int_appl_date = $appl_date;
+	$int_cut_date =~ s/\-//g;
+	$int_appl_date =~ s/\-//g;
+	if ($int_cut_date > $int_appl_date) {
+		# OK, found and application date within range for cutoff
+		# Remember value, unless I got an larger value already.
+		if (not(defined $eosl_factor)) {
+			$eosl_factor = $cut_waarde;
+		} elsif ((defined $eosl_factor) && ($eosl_factor < $uitdovend_waarde)) {
+			$eosl_factor =$cut_waarde;
+		}
+	}
+	if (not defined $eosl_factor) {
+		$eosl_factor = 0;
+	}
+	return $eosl_factor;
+}
+
 sub save_results {
 	my ($cmdb_id, $naam, $dienstentype, $eigenaar_beleidsdomein, 
         $eigenaar_entiteit, $fin_beleidsdomein, $fin_entiteit, $msgref) = @_;
@@ -273,12 +320,15 @@ sub save_results {
 		$assessment = 0;
 		$migratie = 0;
 	}
-	my $totale_kost = $assessment + $migratie;
+	# Get EOSL cost
+	my $eosl_factor = get_eosl_factor;
+	my $eosl_kost = $assessment * $eosl_factor;
+	my $totale_kost = $assessment + $migratie + $eosl_kost;
 	my ($so_toepassingsmanager, $vo_applicatiebeheerder) = get_mgmt($cmdb_id);
 	my @fields = qw (cmdb_id naam dienstentype eigenaar_beleidsdomein 
 		         eigenaar_entiteit fin_beleidsdomein fin_entiteit
 				 connections comp no_comp sw_cnt sw_cnt_bou job_cnt 
-				 job_cnt_bou assessment migratie totale_kost 
+				 job_cnt_bou assessment migratie eosl_kost totale_kost 
 				 so_toepassingsmanager vo_applicatiebeheerder msgstr);
     my (@vals) = map { eval ("\$" . $_ ) } @fields;
 	# Also add status counters to fields and vals
@@ -367,6 +417,7 @@ $query = "CREATE TABLE IF NOT EXISTS `apps_checks` (
 			  `vo_applicatiebeheerder` varchar(255) DEFAULT NULL,
 			  `assessment` double DEFAULT NULL,
 			  `migratie` double DEFAULT NULL,
+			  `eosl_kost` double DEFAULT NULL,
 			  `totale_kost` double DEFAULT NULL,
 			  `msgstr` text,
 			  `computer_uitdovend` date DEFAULT NULL,
@@ -423,6 +474,31 @@ foreach my $arrayhdl (@$ref) {
 	my $eosl_date = $$arrayhdl{eosl_date};
 	my $key = $cmdb_id . $label;
 	$eosl{$key} = $eosl_date;
+}
+
+# Collect Kostelementen for EOSL
+$query = "SELECT element, datum, waarde 
+		  FROM kostelementen
+		  WHERE ((element = 'uitdovend') 
+		         OR (element = 'uitgedoofd'))";
+$ref = do_select($dbh, $query);
+unless (defined $ref) {
+	$log->fatal("Could not collect kostelementen, exiting...");
+	exit_application(1);
+}
+foreach my $record (@$ref) {
+	my $element = $$record{element};
+	my $date	= $$record{datum};
+	my $waarde  = $$record{waarde};
+	if (trim(lc($element)) eq "uitdovend") {
+		$uitdovend_date = $date;
+		$uitdovend_waarde = $waarde;
+	} elsif (trim(lc($element)) eq "uitgedoofd") {
+		$uitgedoofd_date = $date;
+		$uitgedoofd_waarde = $waarde;
+	} else {
+		$log->warn("Element $element not known");
+	}
 }
 
 $log->info("Investigating Applications");

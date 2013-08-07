@@ -40,8 +40,7 @@ No options have been specified.
 # Variables
 ########### 
 
-my ($log, $cfg, $dbh);
-my @fields = qw( element ci_type ci_categorie computertype waarde);
+my ($log, $cfg, $dbh, @fields);
 
 #####
 # use
@@ -57,7 +56,7 @@ use strict 'subs';
 use Getopt::Std;		    # Handle input params
 use Pod::Usage;			    # Allow Usage information
 use DBI();
-use DbUtil qw (db_connect);
+use DbUtil qw (db_connect do_select);
 
 use Data::Dumper;
 
@@ -133,6 +132,14 @@ if ($log->is_debug()) {
 
 # Make database connection for vo database
 $dbh = db_connect('vo') or exit_application(1);
+
+# Get all fields
+my $query = "SELECT * FROM kostelementen";
+my $ref = do_select($dbh, $query);
+my $record = @$ref[0];
+while (my ($key, undef) = each %$record) {
+	push @fields, $key;
+}
 
 # Export the results to excel files
 $log->info("Export kostenelementen to excel");

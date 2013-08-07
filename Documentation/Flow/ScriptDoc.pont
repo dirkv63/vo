@@ -1,4 +1,4 @@
-; Tue Aug 06 16:11:06 CEST 2013
+; Wed Aug 07 10:25:33 CEST 2013
 ; 
 ;+ (version "3.4.8")
 ;+ (build "Build 629")
@@ -102,22 +102,17 @@
 		(type INSTANCE)
 ;+		(allowed-classes Script)
 		(create-accessor read-write))
-	(multislot writes_to
-;+		(comment "Where the script writes the information to.")
-		(type INSTANCE)
-;+		(allowed-classes Artifact)
-		(create-accessor read-write))
 	(multislot is_called_by
 ;+		(comment "Where the script is called from.")
 		(type INSTANCE)
 ;+		(allowed-classes Script)
 		(create-accessor read-write))
-	(multislot runs_before
-;+		(comment "Sequence in which the script runs.")
+	(multislot writes_to
+;+		(comment "Where the script writes the information to.")
 		(type INSTANCE)
-;+		(allowed-classes Script)
+;+		(allowed-classes Artifact)
 		(create-accessor read-write))
-	(multislot runs_after
+	(multislot runs_before
 ;+		(comment "Sequence in which the script runs.")
 		(type INSTANCE)
 ;+		(allowed-classes Script)
@@ -126,6 +121,11 @@
 ;+		(comment "Name of the object.")
 		(type STRING)
 ;+		(cardinality 0 1)
+		(create-accessor read-write))
+	(multislot runs_after
+;+		(comment "Sequence in which the script runs.")
+		(type INSTANCE)
+;+		(allowed-classes Script)
 		(create-accessor read-write))
 	(single-slot description
 ;+		(comment "Describes the purpose or goal of the script.")
