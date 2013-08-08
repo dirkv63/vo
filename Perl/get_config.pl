@@ -20,7 +20,7 @@ This script will get the configuration for the specified CI. The CI number is in
 
 =head1 SYNOPSIS
 
- get_config.pl [-c ci_id] [-b bedrijfsnummer] [-g] [-e]
+ get_config.pl [-c ci_id] [-b bedrijfsnummer] [-g] [-e] [-f]
 
  get_config -h	Usage
  get_config -h 1  Usage and description of the options
@@ -46,6 +46,10 @@ If specified, then do not include 'gebruiksrelaties'.
 
 If specified, then add EOSL information if available.
 
+=item B<-f>
+
+If specified, then do not go below Fysieke computer.
+
 =back
 
 =head1 ADDITIONAL DOCUMENTATION
@@ -56,7 +60,7 @@ If specified, then add EOSL information if available.
 # Variables
 ########### 
 
-my ($log, $dbh, $cmdb_id, $bt_id, %ci_hash, $no_gebruiksrel, $get_eosl);
+my ($log, $dbh, $cmdb_id, $bt_id, %ci_hash, $no_gebruiksrel, $get_eosl, $not_below_fys);
 my $filedir = "c:/temp/";
 
 #####
@@ -214,9 +218,11 @@ sub go_down($$) {
 			print DOT "$cmdb_id_target [shape=record, label=\"{$node_attr}\"];\n";
 			print DOT $edge_str;
 			$ci_hash{$ci_key} = 1;
-			if (not ($relation eq "maakt gebruik van")) {
-				go_down($cmdb_id_target, $naam_target);
-			}
+			# Conditions to stop go down again
+			if ($relation eq "maakt gebruik van") { next; }
+			if ((defined $not_below_fys) && ($ci_type_target eq "FYSIEKE COMPUTER")) { next; }
+			# No more conditions, so continue to go down
+			go_down($cmdb_id_target, $naam_target);
 		}
 	}
 }
@@ -266,7 +272,7 @@ sub go_up($$) {
 
 # Handle input values
 my %options;
-getopts("h:c:b:ge", \%options) or pod2usage(-verbose => 0);
+getopts("h:c:b:gef", \%options) or pod2usage(-verbose => 0);
 my $arglength = scalar keys %options;  
 if ($arglength == 0) {			# If no options specified,
 	$options{"h"} = 0;			# display usage.
@@ -304,6 +310,9 @@ if (exists $options{"g"}) {
 }
 if (exists $options{"e"}) {
 	$get_eosl = "Show EOSL Information";
+}
+if (exists $options {"f"}) {
+	$not_below_fys = "Not below Physical Computer";
 }
 # Show input parameters
 if ($log->is_trace()) {

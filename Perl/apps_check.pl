@@ -294,10 +294,12 @@ sub get_max_eosl($$$$) {
 	if ($int_cut_date > $int_appl_date) {
 		# OK, found and application date within range for cutoff
 		# Remember value, unless I got an larger value already.
-		if (not(defined $eosl_factor)) {
+		if (defined $eosl_factor) {
+			if ($eosl_factor < $cut_waarde) {
+				$eosl_factor = $cut_waarde;
+			}
+		} else {
 			$eosl_factor = $cut_waarde;
-		} elsif ((defined $eosl_factor) && ($eosl_factor < $uitdovend_waarde)) {
-			$eosl_factor =$cut_waarde;
 		}
 	}
 	if (not defined $eosl_factor) {
