@@ -48,13 +48,13 @@ No inline options are available. There is a properties\vo.ini file that contains
 # Variables
 ########### 
 
-my ($log, $cfg, $dbh, @fields, @vals, %kost, @functies);
+my ($log, $cfg, $dbh, @fields, @vals, %kost, @functies, $mgmt_waarde, $arch_waarde);
 my @fields_check = qw (cmdb_id naam ci_type ci_categorie locatie connections 
 				       status_not_defined status_buiten_gebruik status_in_gebruik
 				       status_in_stock status_nieuw status_not_niet_in_gebruik);
 my @fields_excel = qw (cmdb_id naam financieel_beheerder eigenaar 
 					   dienstentype omgeving functionele_naam kenmerk
-					   migratiekost connections ci_type ci_categorie locatie);
+					   migratie project_kost totale_kost connections ci_type ci_categorie locatie);
 
 #####
 # use
@@ -140,21 +140,26 @@ sub get_attribs($) {
 		push @fields, $field;
 		push @vals, $$record{$field};
 	}
-	my $migratiekost = 0;
+	my $migratie = 0;
 	if (defined $$record{kenmerk}) {
-		$migratiekost = get_cost($$record{kenmerk});
+		$migratie = get_cost($$record{kenmerk});
 	}
-	if ($migratiekost == 0) {
-		$migratiekost = $kost{default};
+	if ($migratie == 0) {
+		$migratie = $kost{default};
 	}
 	if (defined $$record{omgeving}) {
 		my $omgeving = $$record{omgeving};
 		if (($omgeving eq "Test") || ($omgeving eq "Ontwikkeling")) {
-			$migratiekost = sprintf("%.2f", $migratiekost / 3);
+			$migratie = $migratie / 3;
 		}
 	}
-	push @fields, "migratiekost";
-	push @vals, $migratiekost;
+	my $project_kost = ($migratie * $mgmt_waarde) + ($migratie * $arch_waarde);
+	my $totale_kost = $migratie + $project_kost;
+	my @labels = qw(migratie project_kost totale_kost);
+	foreach my $label (@labels) {
+		push @fields, $label;
+		push @vals, sprintf("%.2f", map { eval ("\$" . $_ ) } $label);
+	}
 	return;
 }
 
@@ -214,7 +219,9 @@ $query = "CREATE TABLE IF NOT EXISTS `system_cost` (
 			  `ci_categorie` varchar(255) DEFAULT NULL,
 			  `locatie` varchar(255) DEFAULT NULL,
 			  `connections` double DEFAULT NULL,
-			  `migratiekost` double DEFAULT NULL,
+			  `migratie` double DEFAULT NULL,
+			  `project_kost` double DEFAULT NULL,
+			  `totale_kost` double DEFAULT NULL,
 			  `omgeving` varchar(255) DEFAULT NULL,
 			  `dienstentype` varchar(255) DEFAULT NULL,
 			  `kenmerk` varchar(255) DEFAULT NULL,
@@ -249,6 +256,30 @@ foreach my $record (@$ref) {
 	$kost{$functie} = $waarde;
 	push @functies, $functie;
 }
+
+# Also collect project management and architecture cost
+$query = "SELECT element, functie, waarde 
+		  FROM kostelementen
+		  WHERE element = 'project'";
+$ref = do_select($dbh, $query);
+unless (defined $ref) {
+	$log->fatal("Could not collect kostelementen, exiting...");
+	exit_application(1);
+}
+foreach my $record (@$ref) {
+	my $element = $$record{element};
+	my $functie = $$record{functie};
+	my $waarde  = $$record{waarde};
+	if (trim(lc($functie)) eq "management") {
+		$mgmt_waarde = $waarde;
+	} elsif (trim(lc($functie)) eq "architectuur") {
+		$arch_waarde = $waarde;
+	} else {
+		$log->error("Found unknown project cost for $functie ($waarde)");
+	}
+}
+
+
 
 $log->info("Investigating Computer Systems in scope for Migration");
 # Get all the 'Fysieke' Computers

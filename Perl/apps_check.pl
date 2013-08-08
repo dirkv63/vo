@@ -60,13 +60,14 @@ my ($log, $cfg, $dbh, $top_ci, $msg, @msgs, $connections, %states);
 my ($comp, $no_comp, $sw_cnt, $sw_cnt_bou, $job_cnt, $job_cnt_bou, %locations);
 my ($assessment, $migratie, %eosl, %appl_eosl);
 my ($uitdovend_date, $uitdovend_waarde, $uitgedoofd_date, $uitgedoofd_waarde);
+my ($mgmt_waarde, $arch_waarde, $def_waarde);
 my @eosl_labels = qw (computer_uitdovend computer_uitgedoofd
 					  os_uitdovend os_uitgedoofd
 					  component_uitdovend component_uitgedoofd);
 my @fields = qw (cmdb_id naam dienstentype eigenaar_beleidsdomein 
 		         eigenaar_entiteit fin_beleidsdomein fin_entiteit
 				 connections comp no_comp sw_cnt sw_cnt_bou 
-				 assessment migratie eosl_kost totale_kost 
+				 assessment migratie eosl_kost project_kost totale_kost 
 				 so_toepassingsmanager vo_applicatiebeheerder msgstr 
 				 computer_uitdovend computer_uitgedoofd
 				 os_uitdovend os_uitgedoofd
@@ -322,15 +323,26 @@ sub save_results {
 		$assessment = 0;
 		$migratie = 0;
 	}
+	# If location is Boudewijn and no cost was found (so only Jobs on this application),
+	# add default cost
+	if (($job_cnt_bou > 0) && (($assessment + $migratie) == 0)) {
+		$assessment = $def_waarde;
+		$migratie = $def_waarde;
+	}
 	# Get EOSL cost
 	my $eosl_factor = get_eosl_factor;
 	my $eosl_kost = $assessment * $eosl_factor;
-	my $totale_kost = $assessment + $migratie + $eosl_kost;
+	my $work_kost = $assessment + $migratie + $eosl_kost;
+	my $project_kost = ($work_kost * $mgmt_waarde) + ($work_kost * $arch_waarde);
+	my $totale_kost = $assessment + $migratie + $eosl_kost + $project_kost;
+	# Kost reformatting
+	$project_kost = sprintf("%.2f", $project_kost);
+	$totale_kost  = sprintf("%.2f", $totale_kost);
 	my ($so_toepassingsmanager, $vo_applicatiebeheerder) = get_mgmt($cmdb_id);
 	my @fields = qw (cmdb_id naam dienstentype eigenaar_beleidsdomein 
 		         eigenaar_entiteit fin_beleidsdomein fin_entiteit
 				 connections comp no_comp sw_cnt sw_cnt_bou job_cnt 
-				 job_cnt_bou assessment migratie eosl_kost totale_kost 
+				 job_cnt_bou assessment migratie eosl_kost project_kost totale_kost 
 				 so_toepassingsmanager vo_applicatiebeheerder msgstr);
     my (@vals) = map { eval ("\$" . $_ ) } @fields;
 	# Also add status counters to fields and vals
@@ -420,6 +432,7 @@ $query = "CREATE TABLE IF NOT EXISTS `apps_checks` (
 			  `assessment` double DEFAULT NULL,
 			  `migratie` double DEFAULT NULL,
 			  `eosl_kost` double DEFAULT NULL,
+			  `project_kost` double DEFAULT NULL,
 			  `totale_kost` double DEFAULT NULL,
 			  `msgstr` text,
 			  `computer_uitdovend` date DEFAULT NULL,
@@ -479,10 +492,11 @@ foreach my $arrayhdl (@$ref) {
 }
 
 # Collect Kostelementen for EOSL
-$query = "SELECT element, datum, waarde 
+$query = "SELECT element, functie, datum, waarde 
 		  FROM kostelementen
 		  WHERE ((element = 'uitdovend') 
-		         OR (element = 'uitgedoofd'))";
+		         OR (element = 'uitgedoofd')
+				 OR (element = 'project'))";
 $ref = do_select($dbh, $query);
 unless (defined $ref) {
 	$log->fatal("Could not collect kostelementen, exiting...");
@@ -490,6 +504,7 @@ unless (defined $ref) {
 }
 foreach my $record (@$ref) {
 	my $element = $$record{element};
+	my $functie = $$record{functie};
 	my $date	= $$record{datum};
 	my $waarde  = $$record{waarde};
 	if (trim(lc($element)) eq "uitdovend") {
@@ -498,6 +513,16 @@ foreach my $record (@$ref) {
 	} elsif (trim(lc($element)) eq "uitgedoofd") {
 		$uitgedoofd_date = $date;
 		$uitgedoofd_waarde = $waarde;
+	} elsif (trim(lc($element)) eq "project") {
+		if (trim(lc($functie)) eq "management") {
+			$mgmt_waarde = $waarde;
+		} elsif (trim(lc($functie)) eq "architectuur") {
+			$arch_waarde = $waarde;
+		} elsif (trim(lc($functie)) eq "default") {
+			$def_waarde = $waarde;
+		} else {
+			$log->error("Found unknown project cost for $functie ($waarde)");
+		}
 	} else {
 		$log->warn("Element $element not known");
 	}
