@@ -1,10 +1,10 @@
 =head1 NAME
 
-comp2appl.pl - Verification of the Component to Application relations.
+Serverless_Components.pl - Find the Components without Server.
 
 =head1 VERSION HISTORY
 
-version 1.0 01 August 2013 DV
+version 1.0 25 July 2013 DV
 
 =over 4
 
@@ -16,15 +16,15 @@ Initial release.
 
 =head1 DESCRIPTION
 
-For all software components, try to find a link to the application. Links to multiple applications is allowed.
+For Software components that do not have a computer linked to it, try to find the application and the application manager.
 
 =head1 SYNOPSIS
 
- comp2appl.pl
+ Serverless_Components.pl
 
- comp2appl -h	Usage
- comp2appl -h 1  Usage and description of the options
- comp2appl -h 2  All documentation
+ Serverless_Components -h	Usage
+ Serverless_Components -h 1  Usage and description of the options
+ Serverless_Components -h 2  All documentation
 
 =head1 OPTIONS
 
@@ -42,8 +42,8 @@ No inline options are available. There is a properties\vo.ini file that contains
 # Variables
 ########### 
 
-my ($log, $cfg, $dbh, @msgs, $connections);
-my @fields = qw (cmdb_id naam ci_type ci_categorie connections msgstr);
+my ($log, $cfg, $dbh, @msgs, $connections, $applicatie, $so_toepassingsmanager);
+my @fields = qw (cmdb_id naam ci_type ci_categorie applicatie so_toepassingsmanager msgstr);
 
 #####
 # use
@@ -59,7 +59,7 @@ use strict 'subs';
 use Getopt::Std;		    # Handle input params
 use Pod::Usage;			    # Allow Usage information
 use DBI();
-use DbUtil qw(db_connect do_select do_stmt create_record);
+use DbUtil qw(db_connect do_select do_stmt singleton_select create_record);
 
 use Log::Log4perl qw(get_logger);
 use SimpleLog qw(setup_logging);
@@ -102,7 +102,7 @@ sub go_up($);
 sub go_up($) {
 	my ($cmdb_id) = @_;
 	my $query = "SELECT relation, cmdb_id_source, naam_source, ci_type_source,
-						ci_categorie, status
+						ci_categorie, status, so_toepassingsmanager
 				 FROM relations, component
 				 WHERE cmdb_id_target = '$cmdb_id'
 				   AND cmdb_id_source = cmdb_id
@@ -117,11 +117,16 @@ sub go_up($) {
 		my $ci_type_source = $$arrayhdl{ci_type_source};
 		my $ci_categorie = $$arrayhdl{ci_categorie};
 		my $status = $$arrayhdl{status} || "not defined";
+		$so_toepassingsmanager = $$arrayhdl{so_toepassingsmanager};
 		$connections++;
 		# Is this toepassingcomponentinstallatie as expected?
 		if ($ci_type_source =~ m/^toepassingomgeving$/i) {
-			my $msg = "OK, found application";
-			push @msgs, $msg;
+			if (defined $applicatie)  {
+				my $msg = "Multiple applications found ($applicatie, $naam_source)";
+				push @msgs, $msg;
+			} else {
+				$applicatie = $naam_source;
+			}
 		} else {
 			my $msg = "Unexpected type $ci_type_source found";
 			push @msgs, $msg;
@@ -134,7 +139,7 @@ sub save_results {
 	my ($cmdb_id, , $naam, $ci_type, $ci_categorie) = @_;
 	my $msgstr = join ("\n", @msgs);
 	my (@vals) = map { eval ("\$" . $_ ) } @fields;
-	unless (create_record($dbh, "comp_apps", \@fields, \@vals)) {
+	unless (create_record($dbh, "orphan_components", \@fields, \@vals)) {
 		$log->fatal("Could not create record for $cmdb_id");
 		exit_application(1);
 	}
@@ -146,7 +151,7 @@ sub save_results {
 
 # Handle input values
 my %options;
-getopts("h:", \%options) or pod2usage(-verbose => 0);
+getopts("h:c:b:g", \%options) or pod2usage(-verbose => 0);
 # my $arglength = scalar keys %options;  
 # if ($arglength == 0) {			# If no options specified,
 #	$options{"h"} = 0;			# display usage.
@@ -179,40 +184,46 @@ if ($log->is_trace()) {
 # Make database connection for vo database
 $dbh = db_connect("vo") or exit_application(1);
 
-$log->info("Preparing table comp_apps");
-# Drop table comp_apps if exists
-my $query = "DROP TABLE IF EXISTS comp_apps";
+$log->info("Preparing table orphan_components");
+# Drop table orphan_components if exists
+my $query = "DROP TABLE IF EXISTS orphan_components";
 unless (do_stmt($dbh, $query)) {
-	$log->fatal("Could not drop table comp_apps, exiting...");
+	$log->fatal("Could not drop table orphan_components, exiting...");
 	exit_application(1);
 }
 
-# Create table comp_apps
-$query = "CREATE TABLE IF NOT EXISTS `comp_apps` (
+# CREATE table EOSL
+# Table eosl_raw needs to have cmdb_id, naam, standaarddatum, uitdovend_datum, uitgedoofd_datum
+# Table eosl_raw should not have ID! (otherwise each raw is unique)
+$query = "CREATE TABLE IF NOT EXISTS `orphan_components` (
 			  `ID` int(11) NOT NULL AUTO_INCREMENT,
 			  `cmdb_id` double DEFAULT NULL,
 			  `naam` varchar(255) DEFAULT NULL,
 			  `ci_type` varchar(255) DEFAULT NULL,
 			  `ci_categorie` varchar(255) DEFAULT NULL,
-			  `connections` int(11) default null,
+			  `applicatie` varchar(255) DEFAULT NULL,
+			  `so_toepassingsmanager` varchar(255) DEFAULT NULL,
 			  `msgstr` text,
 			  PRIMARY KEY (`ID`)
 		  ) ENGINE=MyISAM DEFAULT CHARSET=utf8";
 unless (do_stmt($dbh, $query)) {
-	$log->fatal("Could not create table comp_apps, exiting...");
+	$log->fatal("Could not create table orphan_components, exiting...");
 	exit_application(1);
 }
 
 # Find components without link to computer
 $log->info("Collect components without link to computer");
 $query = "SELECT sw_id, sw_naam, sw_type, sw_categorie
-		  FROM sw_checks";
+		  FROM sw_checks
+		  WHERE comp_id is null";
 my $ref = do_select($dbh, $query);
 unless (defined $ref) {
 	$log->fatal("Could not collect components, exiting...");
 	exit_application(1);
 }
 foreach my $record (@$ref) {
+	undef $applicatie;
+	undef $so_toepassingsmanager;
 	$connections = 0;
 	undef @msgs;
 	my $cmdb_id = $$record{sw_id};
@@ -224,33 +235,13 @@ foreach my $record (@$ref) {
 }
 
 $log->info("Export sw_checks to excel");
-my $nr_lines = write_table($dbh, "comp_apps",\@fields);
+my $nr_lines = write_table($dbh, "orphan_components",\@fields);
 if (defined $nr_lines) {
-	$log->info("$nr_lines exported into excel file");
+	$log->info("$nr_lines lines exported into excel file");
 } else {
 	$log->fatal("Could not create excel report for table sw_checks");
 	exit_application(1);
 }
-
-# Get Components without link to Application
-$log->info("Components without link to Applications");
-$query = "CREATE TEMPORARY TABLE no_apps4comp
-		  SELECT * 
-		  FROM  `comp_apps` 
-		  WHERE  `msgstr` NOT LIKE  '%OK, found application%'";
-unless (do_stmt($dbh, $query)) {
-	$log->fatal("Could not collect components without applications, exiting...");
-	exit_application(1);
-}
-$nr_lines = write_table($dbh, "no_apps4comp",\@fields);
-if (defined $nr_lines) {
-	$log->info("$nr_lines exported into excel file");
-} else {
-	$log->fatal("Could not create excel report for table sw_checks");
-	exit_application(1);
-}
-
-
 
 exit_application(0);
 
