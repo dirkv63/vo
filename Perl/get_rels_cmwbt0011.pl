@@ -56,7 +56,7 @@ default: d:\temp\log
 # Variables
 ########### 
 
-my ($log, $dbh, %allvalues, %cmdb_id_hash, %naam_hash, %ci_type_hash, %relation_hash, $reccnt);
+my ($log, $dbh, %allvalues, %cmdb_id_hash, %naam_hash, %ci_type_hash, %ci_categorie_hash, %relation_hash, $reccnt);
 
 #####
 # use
@@ -108,12 +108,13 @@ sub trim {
     return wantarray ? @out : $out[0];
 }
 
-sub handle_relation($$$$$$$) {
-	my ($cmdb_id_source, $naam_source, $ci_type_source, $relation, 
-		$cmdb_id_target, $naam_target, $ci_type_target) = @_;
+sub handle_relation($$$$$$$$$) {
+	my ($cmdb_id_source, $naam_source, $ci_type_source, $ci_categorie_source, $relation, 
+		$cmdb_id_target, $naam_target, $ci_type_target, $ci_categorie_target) = @_;
 	my $valuestr = "('$cmdb_id_source', " . $dbh->quote($naam_source) . 
-				   ", '$ci_type_source', '$relation', '$cmdb_id_target', "
-				   . $dbh->quote($naam_target) . ", '$ci_type_target')";
+				   ", '$ci_type_source', '$ci_categorie_source', '$relation', 
+				   '$cmdb_id_target', " . $dbh->quote($naam_target) . ", 
+				   '$ci_type_target', '$ci_categorie_target')";
 	$allvalues{$valuestr} = 1;
 }
 
@@ -126,35 +127,40 @@ sub handle_bedrijfstoepassingen($) {
 		my $naam_source = $$arrayref{'Naam bedrijfstoepassing'} || "";
 		my $ci_type_target = "Toepassingomgeving";
 		my $ci_type_source = "Bedrijfstoepassing";
+		my $ci_categorie_source = "";
+		my $ci_categorie_target = "";
 		my $relation = "heeft component";
 		$cmdb_id_source = $cmdb_id_source + 1000000;
-		handle_relation($cmdb_id_source, $naam_source, $ci_type_source, $relation, 
-						$cmdb_id_target, $naam_target, $ci_type_target);
+		handle_relation($cmdb_id_source, $naam_source, $ci_type_source, $ci_categorie_source, 
+						$relation, 
+						$cmdb_id_target, $naam_target, $ci_type_target, $ci_categorie_target);
 	}
 }
 
-sub store_level($$$$$) {
-	my ($cmdb_id, $naam, $ci_type, $level, $relation) = @_;
+sub store_level($$$$$$) {
+	my ($cmdb_id, $naam, $ci_type, $ci_categorie, $level, $relation) = @_;
 	$cmdb_id_hash{$level} = $cmdb_id;
 	$naam_hash{$level} = $naam;
 	$ci_type_hash{$level} = $ci_type;
+	$ci_categorie_hash{$level} = $ci_categorie;
 	$relation_hash{$level} = $relation;
 	# Clear all information on levels above current level
 	for (my $cnt = $level+1; $cnt < 10; $cnt++) {
 		undef $cmdb_id_hash{$cnt};
 		undef $naam_hash{$cnt};
 		undef $ci_type_hash{$cnt};
+		undef $ci_categorie_hash{$cnt};
 		undef $relation_hash{$cnt};
 	}
 }
 
-sub process_level ($$$$$) {
-	my ($cmdb_id, $naam, $ci_type, $level, $relation) = @_;
+sub process_level ($$$$$$) {
+	my ($cmdb_id, $naam, $ci_type, $ci_categorie, $level, $relation) = @_;
 	my $id = $level - 1;
 	if (defined $cmdb_id_hash{$id}) {
-		handle_relation($cmdb_id_hash{$id}, $naam_hash{$id}, $ci_type_hash{$id},
-			            $relation, $cmdb_id, $naam, $ci_type);
-		store_level($cmdb_id, $naam, $ci_type, $level, $relation);
+		handle_relation($cmdb_id_hash{$id}, $naam_hash{$id}, $ci_type_hash{$id}, 
+			            $ci_categorie_hash{$id}, $relation, $cmdb_id, $naam, $ci_type, $ci_categorie);
+		store_level($cmdb_id, $naam, $ci_type, $ci_categorie, $level, $relation);
 	} else {
 		my $msg = "No previous record found for ID $cmdb_id, $naam, $ci_type on level $level and relation $relation\n";
 		$log->fatal($msg);
@@ -162,9 +168,9 @@ sub process_level ($$$$$) {
 	}
 }
 
-sub evaluate_rel($$$$$$) {
+sub evaluate_rel($$$$$$$) {
 	my ($relation, $level);
-	my ($naam_tpo, $cmdb_id_tpo, $rel_str, $ci_type, $cmdb_id, $naam) = @_;
+	my ($naam_tpo, $cmdb_id_tpo, $rel_str, $ci_type, $ci_categorie, $cmdb_id, $naam) = @_;
 	# Get type and index of relation
 	$rel_str = trim($rel_str);
 	if (index($rel_str, "G") > -1) {
@@ -179,16 +185,16 @@ sub evaluate_rel($$$$$$) {
 		if ($cmdb_id_tpo > -1) {
 			# Relation to toepassingsomgeving
 			if ($rel_str eq "G") {
-				handle_relation($cmdb_id, $naam, $ci_type, $relation, 
-					        $cmdb_id_tpo, $naam_tpo, "Toepassingomgeving");
+				handle_relation($cmdb_id, $naam, $ci_type, $ci_categorie, $relation, 
+					        $cmdb_id_tpo, $naam_tpo, "Toepassingomgeving", "");
 			} else {
-				handle_relation($cmdb_id_tpo, $naam_tpo, "Toepassingomgeving",
-							    $relation, $cmdb_id, $naam, $ci_type);
+				handle_relation($cmdb_id_tpo, $naam_tpo, "Toepassingomgeving", "",
+							    $relation, $cmdb_id, $naam, $ci_type, $ci_categorie);
 			}
 		} 
-		store_level($cmdb_id, $naam, $ci_type, $level, $relation);
+		store_level($cmdb_id, $naam, $ci_type, $ci_categorie, $level, $relation);
 	} else {
-		process_level($cmdb_id, $naam, $ci_type, $level, $relation);
+		process_level($cmdb_id, $naam, $ci_type, $ci_categorie, $level, $relation);
 	}
 }
 
@@ -199,9 +205,10 @@ sub handle_ci_records($) {
 		my $cmdb_id_tpo = $$arrayref{'CMDB referentie omgeving'} || "";
 		my $rel_str = $$arrayref{'relatie'} || "";
 		my $ci_type = $$arrayref{'CI type'} || "";
+		my $ci_categorie = $$arrayref{'CI categorie'} || "";
 		my $cmdb_id = $$arrayref{'CI CMDB referentie'} || "";
 		my $naam = $$arrayref{'CI systeemnaam'} || "";
-		evaluate_rel($naam_tpo, $cmdb_id_tpo, $rel_str, $ci_type, 
+		evaluate_rel($naam_tpo, $cmdb_id_tpo, $rel_str, $ci_type, $ci_categorie,
 			         $cmdb_id, $naam);
 	}
 }
@@ -210,8 +217,9 @@ sub load_records($) {
 	# Remove last comma from $all_valuestr
 	my ($all_valuestr) = @_;
 	$all_valuestr = substr $all_valuestr, 0, -1;
-	my $query = "INSERT INTO relations (cmdb_id_source, naam_source, ci_type_source, relation,
-								 cmdb_id_target, naam_target, ci_type_target)
+	my $query = "INSERT INTO relations (cmdb_id_source, naam_source, ci_type_source, 
+								ci_categorie_source, relation,
+								cmdb_id_target, naam_target, ci_type_target, ci_categorie_target)
 	  		     VALUES $all_valuestr";
 	unless (do_stmt($dbh, $query)) {
 		$log->fatal("Could not load relation records.");
@@ -270,10 +278,12 @@ $query = "CREATE TABLE relations (
 			cmdb_id_source INT NOT NULL,
 			naam_source VARCHAR(255) NOT NULL,
 			ci_type_source VARCHAR(255) NOT NULL,
+			ci_categorie_source VARCHAR(255) NOT NULL,
 			relation VARCHAR(255) NOT NULL,
 			cmdb_id_target INT NOT NULL,
 			naam_target VARCHAR(255) NOT NULL,
-			ci_type_target VARCHAR(255) NOT NULL)
+			ci_type_target VARCHAR(255) NOT NULL,
+			ci_categorie_target VARCHAR(255) NOT NULL)
 		  ENGINE=MyISAM DEFAULT CHARSET=utf8";
 unless (do_stmt($dbh, $query)) {
 	$log->fatal("Could not create table relations");
@@ -292,7 +302,8 @@ handle_bedrijfstoepassingen($ref);
 
 # Get all the component relation information
 $query = "SELECT `Toepassingomgeving`, `CMDB referentie omgeving`, 
-				 `relatie`, `CI type`, `CI CMDB referentie`, `CI systeemnaam` 
+				 `relatie`, `CI type`, `CI CMDB referentie`, `CI systeemnaam`,
+				 `CI categorie` 
 		  FROM `cmwbt0011`
 		  ORDER BY ID ASC";
 $ref = do_select($dbh, $query);
