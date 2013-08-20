@@ -48,13 +48,14 @@ No inline options are available. There is a properties\vo.ini file that contains
 # Variables
 ########### 
 
-my ($log, $cfg, $dbh, @fields, @vals, %kost, @functies, $mgmt_waarde, $arch_waarde);
+my ($log, $cfg, $dbh, @fields, @vals, %kost, @functies, $mgmt_waarde, $arch_waarde, %uitdovend_hash, %uitgedoofd_hash);
 my @fields_check = qw (cmdb_id naam ci_type ci_categorie locatie connections 
 				       status_not_defined status_buiten_gebruik status_in_gebruik
 				       status_in_stock status_nieuw status_not_niet_in_gebruik);
 my @fields_excel = qw (cmdb_id naam financieel_beheerder eigenaar 
 					   dienstentype omgeving functionele_naam kenmerk
-					   migratie project_kost totale_kost connections ci_type ci_categorie locatie);
+					   migratie project_kost totale_kost uitdovend_datum 
+					   uitgedoofd_datum connections ci_type ci_categorie locatie);
 
 #####
 # use
@@ -225,6 +226,8 @@ $query = "CREATE TABLE IF NOT EXISTS `system_cost` (
 			  `omgeving` varchar(255) DEFAULT NULL,
 			  `dienstentype` varchar(255) DEFAULT NULL,
 			  `kenmerk` varchar(255) DEFAULT NULL,
+			  `uitdovend_datum` date DEFAULT NULL,
+			  `uitgedoofd_datum` date DEFAULT NULL,
 			  `functionele_naam` varchar(255) DEFAULT NULL,
 			  `financieel_beheerder` varchar(255) DEFAULT NULL,
 			  `eigenaar` varchar(255) DEFAULT NULL,
@@ -279,7 +282,22 @@ foreach my $record (@$ref) {
 	}
 }
 
-
+# Collect EOSL information
+$query = "SELECT * FROM rls0004";
+$ref = do_select($dbh, $query);
+unless (defined $ref) {
+	$log->fatal("Could not collect EOSL data for servers, exiting...");
+	exit_application(1);
+}
+foreach my $record (@$ref) {
+	my $producent = $$record{producent};
+	my $product   = $$record{product};
+	my $uitdovend = $$record{uitdovend_datum} || "";
+	my $uitgedoofd = $$record{uitgedoofd_datum} || "";
+	my $key = $producent . $product;
+	$uitdovend_hash{$key} = $uitdovend;
+	$uitgedoofd_hash{$key} = $uitgedoofd;
+}
 
 $log->info("Investigating Computer Systems in scope for Migration");
 # Get all the 'Fysieke' Computers
@@ -297,6 +315,17 @@ foreach my $record (@$ref) {
 		my $val = $$record{$field};
 		push @fields, $field;
 		push @vals, $val;
+	}
+	my $producent = $$record{producent};
+	my $product   = $$record{product};
+	my $key = $producent . $product;
+	if ((defined($uitdovend_hash{$key}) && length($uitdovend_hash{$key}) > 5)) {
+		push @fields, "uitdovend_datum";
+		push @vals, $uitdovend_hash{$key};
+	}
+	if ((defined $uitgedoofd_hash{$key}) && (length($uitgedoofd_hash{$key}) > 5)) {
+		push @fields, "uitgedoofd_datum";
+		push @vals, $uitgedoofd_hash{$key};
 	}
 	# Get admin data
 	get_attribs($cmdb_id);

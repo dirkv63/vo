@@ -63,9 +63,8 @@ my ($sw_cnt, $job_cnt, %locations);
 # eosl variables
 my (%computer_uitdovend, %component_uitdovend, %os_uitdovend);
 my (%computer_uitgedoofd, %component_uitgedoofd, %os_uitgedoofd);
-my @fields = qw (cmdb_id naam ci_type ci_categorie locatie 
-                 sw_cnt job_cnt 
-				 connections msgstr
+my @fields = qw (cmdb_id naam ci_type ci_categorie producent product
+				 locatie sw_cnt job_cnt connections msgstr
 				 status_not_defined status_buiten_gebruik status_in_gebruik
 				 status_in_stock status_nieuw status_not_niet_in_gebruik);
 
@@ -339,7 +338,7 @@ sub go_up($$$) {
 }
 
 sub save_results {
-	my ($cmdb_id, $naam, $ci_type, $ci_categorie, $locatie) = @_;
+	my ($cmdb_id, $naam, $ci_type, $ci_categorie, $locatie, $producent, $product) = @_;
 	# Remove duplicates from msgs array
 	my %msghash = map { $_, 1} @msgs;
 	my $msgstr = join ("\n", keys %msghash);
@@ -438,6 +437,8 @@ $query = "CREATE TABLE IF NOT EXISTS `system_checks` (
 			  `naam` varchar(255) DEFAULT NULL,
 			  `ci_type` varchar(255) DEFAULT NULL,
 			  `ci_categorie` varchar(255) DEFAULT NULL,
+			  `producent` varchar(255) DEFAULT NULL,
+			  `product` varchar(255) DEFAULT NULL,
 			  `locatie` varchar(255) DEFAULT NULL,
 			  `sw_cnt` double DEFAULT NULL,
 			  `job_cnt` double DEFAULT NULL,
@@ -462,7 +463,8 @@ get_eosl_os;
 
 $log->info("Investigating Computer Systems");
 # Get all the 'Fysieke' Computers
-$query = "SELECT `cmdb_id`, `naam`, `ci_categorie`, `ci_type`, status, locatie
+$query = "SELECT `cmdb_id`, `naam`, `ci_categorie`, `ci_type`, status, locatie,
+				 product, producent
 			 FROM component
 			 WHERE ci_type = 'FYSIEKE COMPUTER'";
 my $ref = do_select($dbh, $query);
@@ -480,6 +482,8 @@ foreach my $record (@$ref) {
 	my $ci_type      = $$record{'ci_type'};
 	my $status		 = $$record{'status'} || "not defined";
 	my $locatie		 = $$record{'locatie'} || "not defined";
+	my $product	     = $$record{'product'};
+	my $producent    = $$record{'producent'};
 	if ($locatie eq "Boudewijn - Brussel/-1C Computerzaal") {
 		# All CIs that are related to Boudewijn have entry in derived_locations table.
 		$locations{$cmdb_id} = $locatie;
@@ -499,7 +503,7 @@ foreach my $record (@$ref) {
 	}
 	$states{$status}++;
 	go_up($cmdb_id, $naam, $locatie);
-	save_results($cmdb_id, $naam, $ci_type, $ci_categorie, $locatie);
+	save_results($cmdb_id, $naam, $ci_type, $ci_categorie, $locatie, $producent, $product);
 }
 
 # Export the results to excel files

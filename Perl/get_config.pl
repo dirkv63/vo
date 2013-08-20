@@ -61,7 +61,7 @@ If specified, then do not go below Fysieke computer.
 ########### 
 
 my ($log, $dbh, $cmdb_id, $bt_id, %ci_hash, $no_gebruiksrel, $get_eosl, $not_below_fys);
-my $filedir = "c:/temp/";
+my $filedir = "c:/temp/apps/";
 
 #####
 # use
@@ -369,7 +369,7 @@ close DOT;
 
 my $cmd = "dot -Tgif -Gcharset=latin1 \"$filename\" -o \"$gifname\"";
 system($cmd);
-exec("\"$gifname\""); 
+# exec("\"$gifname\""); 
 
 # exit_application(0);
 
