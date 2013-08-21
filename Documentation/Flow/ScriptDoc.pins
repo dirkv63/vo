@@ -1,4 +1,4 @@
-; Wed Aug 07 10:25:33 CEST 2013
+; Wed Aug 21 11:48:43 CEST 2013
 ; 
 ;+ (version "3.4.8")
 ;+ (build "Build 629")
@@ -11,7 +11,8 @@
 		[ScriptDoc_Class14]
 		[ScriptDoc_Class20]
 		[ScriptDoc_Class20001]
-		[ScriptDoc_Class20006])
+		[ScriptDoc_Class20006]
+		[ScriptDoc_Class40001])
 	(name "Datawarehouse"))
 
 ([ScriptDoc_Class1] of  Script
@@ -66,11 +67,12 @@
 ([ScriptDoc_Class12] of  Script
 
 	(calls
+		[ScriptDoc_Class30000]
 		[ScriptDoc_Class13]
 		[ScriptDoc_Class16])
-	(description "Groups the rls0013 report processing to get the EOSL information.")
+	(description "Groups the EOSL preparation by loading rls0013 and rls0004 reports.")
 	(is_called_by [ScriptDoc_Class30001])
-	(name "rls0013.bat")
+	(name "eosl_prep.bat")
 	(runs_after [ScriptDoc_Class7])
 	(runs_before [ScriptDoc_Class20000])
 	(script_type bat))
@@ -318,6 +320,17 @@
 	(script_type perl)
 	(writes_to [ScriptDoc_Class29]))
 
+([ScriptDoc_Class30000] of  Script
+
+	(description "Load RLS0004 report from datawarehouse into MySQL database to allow EOSL processing for (isolated) servers.")
+	(is_called_by [ScriptDoc_Class12])
+	(name "load_rls0004.pl")
+	(reads_from [ScriptDoc_Class40001])
+	(script_type perl)
+	(writes_to
+		[ScriptDoc_Class40002]
+		[ScriptDoc_Class40003]))
+
 ([ScriptDoc_Class30001] of  Script
 
 	(calls
@@ -350,7 +363,8 @@
 	(name "system_cost.pl")
 	(reads_from
 		[ScriptDoc_Class42]
-		[ScriptDoc_Class29])
+		[ScriptDoc_Class29]
+		[ScriptDoc_Class40003])
 	(runs_after [ScriptDoc_Class46])
 	(script_type perl)
 	(writes_to
@@ -475,7 +489,8 @@
 		[ScriptDoc_Class10001]
 		[ScriptDoc_Class20004]
 		[ScriptDoc_Class20003]
-		[ScriptDoc_Class20007])
+		[ScriptDoc_Class20007]
+		[ScriptDoc_Class40002])
 	(name "vo"))
 
 ([ScriptDoc_Class40] of  Artifact
@@ -484,6 +499,27 @@
 	(is_part_of [ScriptDoc_Class36])
 	(is_written_by [ScriptDoc_Class37])
 	(name "JobChecks.xls"))
+
+([ScriptDoc_Class40001] of  Artifact
+
+	(description "Report containing EOSL information per System")
+	(is_part_of [ScriptDoc_Class0])
+	(is_read_from [ScriptDoc_Class30000])
+	(name "RLS0004.xls"))
+
+([ScriptDoc_Class40002] of  Artifact
+
+	(description "Load from report RLS0004 into MySQL")
+	(is_part_of [ScriptDoc_Class4])
+	(is_written_by [ScriptDoc_Class30000])
+	(name "rls0004_work"))
+
+([ScriptDoc_Class40003] of  Artifact
+
+	(description "EOSL information per System.")
+	(is_read_from [ScriptDoc_Class30003])
+	(is_written_by [ScriptDoc_Class30000])
+	(name "rls0004"))
 
 ([ScriptDoc_Class41] of  Script
 

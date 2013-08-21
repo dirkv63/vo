@@ -369,7 +369,7 @@ close DOT;
 
 my $cmd = "dot -Tgif -Gcharset=latin1 \"$filename\" -o \"$gifname\"";
 system($cmd);
-# exec("\"$gifname\""); 
+exec("\"$gifname\""); 
 
 # exit_application(0);
 

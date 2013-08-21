@@ -1,4 +1,4 @@
-; Wed Aug 07 10:25:33 CEST 2013
+; Wed Aug 21 11:48:43 CEST 2013
 ; 
 ;+ (version "3.4.8")
 ;+ (build "Build 629")
@@ -173,7 +173,7 @@
 ([KB_051108_Class99] of  Property_List
 )
 
-([KB_071863_Class3] of  Map
+([KB_186807_Class3] of  Map
 )
 
 ([LAYOUT_PROPERTIES] of  Property_List
@@ -262,8 +262,8 @@
 		[INSTANCE_ANNOTATION_FORM_WIDGET]
 		[ScriptDoc_ProjectKB_Class111]
 		[ScriptDoc_ProjectKB_Class155]
-		[STANDARD_FACET_FORM_WIDGET]
 		[STANDARD_SLOT_FORM_WIDGET]
+		[STANDARD_FACET_FORM_WIDGET]
 		[PAL_FORM_WIDGET]
 		[ScriptDoc_ProjectKB_Class142]
 		[STANDARD_CLASS_FORM_WIDGET])
@@ -391,13 +391,13 @@
 
 ([ScriptDoc_ProjectKB_Class10015] of  String
 
-	(name ":META-CLASS")
-	(string_value "%3ANAME"))
+	(name ":PAL-CONSTRAINT")
+	(string_value "%3APAL-NAME"))
 
 ([ScriptDoc_ProjectKB_Class10016] of  String
 
-	(name ":PAL-CONSTRAINT")
-	(string_value "%3APAL-NAME"))
+	(name ":META-CLASS")
+	(string_value "%3ANAME"))
 
 ([ScriptDoc_ProjectKB_Class10017] of  String
 
