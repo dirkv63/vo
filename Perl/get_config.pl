@@ -61,7 +61,7 @@ If specified, then do not go below Fysieke computer.
 ########### 
 
 my ($log, $dbh, $cmdb_id, $bt_id, %ci_hash, $no_gebruiksrel, $get_eosl, $not_below_fys);
-my $filedir = "c:/temp/apps/";
+my $filedir = "c:/temp/";
 
 #####
 # use

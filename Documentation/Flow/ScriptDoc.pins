@@ -1,4 +1,4 @@
-; Wed Aug 21 11:48:43 CEST 2013
+; Thu Aug 22 17:34:28 CEST 2013
 ; 
 ;+ (version "3.4.8")
 ;+ (build "Build 629")
@@ -58,7 +58,8 @@
 		[ScriptDoc_Class33]
 		[ScriptDoc_Class37]
 		[ScriptDoc_Class41]
-		[ScriptDoc_Class46])
+		[ScriptDoc_Class46]
+		[ScriptDoc_Class40000])
 	(is_written_by
 		[ScriptDoc_Class10]
 		[ScriptDoc_Class25])
@@ -300,7 +301,8 @@
 		[ScriptDoc_Class33]
 		[ScriptDoc_Class37]
 		[ScriptDoc_Class30003]
-		[ScriptDoc_Class46])
+		[ScriptDoc_Class46]
+		[ScriptDoc_Class40000])
 	(is_written_by [ScriptDoc_Class30])
 	(name "kostelementen"))
 
@@ -349,7 +351,8 @@
 		[ScriptDoc_Class37]
 		[ScriptDoc_Class41]
 		[ScriptDoc_Class46]
-		[ScriptDoc_Class30003])
+		[ScriptDoc_Class30003]
+		[ScriptDoc_Class40000])
 	(description "When all reports from datawarehouse are loaded into MySQL the process_all bat file will call all perl scripts to process the data and generate reports.")
 	(is_called_by [ScriptDoc_Class30001])
 	(name "process_data.bat")
@@ -366,6 +369,7 @@
 		[ScriptDoc_Class29]
 		[ScriptDoc_Class40003])
 	(runs_after [ScriptDoc_Class46])
+	(runs_before [ScriptDoc_Class40000])
 	(script_type perl)
 	(writes_to
 		[ScriptDoc_Class30004]
@@ -374,6 +378,7 @@
 ([ScriptDoc_Class30004] of  Artifact
 
 	(description "Attributes and cost for the isolated servers in the Boudewijn.")
+	(is_read_from [ScriptDoc_Class40000])
 	(is_written_by [ScriptDoc_Class30003])
 	(name "system_cost"))
 
@@ -440,7 +445,8 @@
 		[ScriptDoc_Class45]
 		[ScriptDoc_Class48]
 		[ScriptDoc_Class10000]
-		[ScriptDoc_Class30005])
+		[ScriptDoc_Class30005]
+		[ScriptDoc_Class50002])
 	(name "Deliverables"))
 
 ([ScriptDoc_Class37] of  Script
@@ -490,7 +496,8 @@
 		[ScriptDoc_Class20004]
 		[ScriptDoc_Class20003]
 		[ScriptDoc_Class20007]
-		[ScriptDoc_Class40002])
+		[ScriptDoc_Class40002]
+		[ScriptDoc_Class50001])
 	(name "vo"))
 
 ([ScriptDoc_Class40] of  Artifact
@@ -499,6 +506,21 @@
 	(is_part_of [ScriptDoc_Class36])
 	(is_written_by [ScriptDoc_Class37])
 	(name "JobChecks.xls"))
+
+([ScriptDoc_Class40000] of  Script
+
+	(description "This script searches for the Virtual Systems attached to isolated servers in Boudewijn.")
+	(is_called_by [ScriptDoc_Class30002])
+	(name "virt_syst_cost.pl")
+	(reads_from
+		[ScriptDoc_Class30004]
+		[ScriptDoc_Class11]
+		[ScriptDoc_Class29])
+	(runs_after [ScriptDoc_Class30003])
+	(script_type perl)
+	(writes_to
+		[ScriptDoc_Class50001]
+		[ScriptDoc_Class50002]))
 
 ([ScriptDoc_Class40001] of  Artifact
 
@@ -609,6 +631,20 @@
 	(runs_before [ScriptDoc_Class8])
 	(script_type perl)
 	(writes_to [ScriptDoc_Class6]))
+
+([ScriptDoc_Class50001] of  Artifact
+
+	(description "This table collects the virtual systems that are associated with the isolated physical computers in the Boudewijn.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_written_by [ScriptDoc_Class40000])
+	(name "virtual_systems"))
+
+([ScriptDoc_Class50002] of  Artifact
+
+	(description "Excel report with the Virtual systems associated with the isolated physical servers in the Boudewijn.")
+	(is_part_of [ScriptDoc_Class36])
+	(is_written_by [ScriptDoc_Class40000])
+	(name "virtual_systems.xls"))
 
 ([ScriptDoc_Class6] of  Artifact
 

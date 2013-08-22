@@ -14,3 +14,6 @@ perl apps_check.pl
 @echo Collect information for Isolated Servers
 @echo ****************************************
 perl system_cost.pl
+@echo Collect virtual systems associated with Isolated Servers
+@echo ********************************************************
+perl virt_syst_cost.pl

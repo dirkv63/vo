@@ -49,12 +49,13 @@ No inline options are available. There is a properties\vo.ini file that contains
 ########### 
 
 my ($log, $cfg, $dbh, @fields, @vals, %kost, @functies, $mgmt_waarde, $arch_waarde, %uitdovend_hash, %uitgedoofd_hash);
+my ($uitdovend_date, $uitdovend_waarde, $uitgedoofd_date, $uitgedoofd_waarde);
 my @fields_check = qw (cmdb_id naam ci_type ci_categorie locatie connections 
 				       status_not_defined status_buiten_gebruik status_in_gebruik
 				       status_in_stock status_nieuw status_not_niet_in_gebruik);
 my @fields_excel = qw (cmdb_id naam financieel_beheerder eigenaar 
 					   dienstentype omgeving functionele_naam kenmerk
-					   migratie project_kost totale_kost uitdovend_datum 
+					   migratie eosl_kost project_kost totale_kost uitdovend_datum 
 					   uitgedoofd_datum connections ci_type ci_categorie locatie);
 
 #####
@@ -122,8 +123,27 @@ sub get_cost($) {
 	return $cost;
 }
 
-sub get_attribs($) {
-	my ($cmdb_id) = @_;
+sub get_eosl_factor($$) {
+	my ($uitdovend, $uitgedoofd) = @_;
+	my $eosl_factor;
+	if ((defined $uitdovend) && (length($uitdovend) > 2)) {
+		if ((defined $uitdovend_date) && (defined $uitdovend_waarde)) {
+			$eosl_factor = get_max_eosl($uitdovend_date, $uitdovend_waarde, $uitdovend, $eosl_factor);
+		}
+	}
+	if ((defined $uitgedoofd) && (length($uitgedoofd) > 2)) {
+		if ((defined $uitgedoofd_date) && (defined $uitgedoofd_waarde)) {
+			$eosl_factor = get_max_eosl($uitgedoofd_date, $uitgedoofd_waarde, $uitgedoofd, $eosl_factor);
+		}
+	}
+	if (not defined $eosl_factor) {
+		$eosl_factor = 0;
+	}
+	return $eosl_factor;
+}
+
+sub get_attribs($$$) {
+	my ($cmdb_id, $sys_uitdovend, $sys_uitgedoofd) = @_;
 	my @attribs = qw (dienstentype omgeving kenmerk financieel_beheerder eigenaar);
 	my $query = "SELECT a.dienstentype, a.omgeving, 
 						a.financieel_beheerder, a.eigenaar,
@@ -154,14 +174,41 @@ sub get_attribs($) {
 			$migratie = $migratie / 3;
 		}
 	}
+	my $eosl_factor = get_eosl_factor($sys_uitdovend, $sys_uitgedoofd);
+	my $eosl_kost = $migratie * $eosl_factor;
 	my $project_kost = ($migratie * $mgmt_waarde) + ($migratie * $arch_waarde);
-	my $totale_kost = $migratie + $project_kost;
-	my @labels = qw(migratie project_kost totale_kost);
+	my $totale_kost = $migratie + $eosl_kost + $project_kost;
+	my @labels = qw(migratie eosl_kost project_kost totale_kost);
 	foreach my $label (@labels) {
 		push @fields, $label;
 		push @vals, sprintf("%.2f", map { eval ("\$" . $_ ) } $label);
 	}
 	return;
+}
+
+sub get_max_eosl($$$$) {
+	my ($cut_date, $cut_waarde, $appl_date, $eosl_factor) = @_;
+	my $val1 = $cut_date;
+	my $val2 = $appl_date;
+	my $int_cut_date = $cut_date;
+	my $int_appl_date = $appl_date;
+	$int_cut_date =~ s/\-//g;
+	$int_appl_date =~ s/\-//g;
+	if ($int_cut_date > $int_appl_date) {
+		# OK, found and application date within range for cutoff
+		# Remember value, unless I got an larger value already.
+		if (defined $eosl_factor) {
+			if ($eosl_factor < $cut_waarde) {
+				$eosl_factor = $cut_waarde;
+			}
+		} else {
+			$eosl_factor = $cut_waarde;
+		}
+	}
+	if (not defined $eosl_factor) {
+		$eosl_factor = 0;
+	}
+	return $eosl_factor;
 }
 
 ######
@@ -221,6 +268,7 @@ $query = "CREATE TABLE IF NOT EXISTS `system_cost` (
 			  `locatie` varchar(255) DEFAULT NULL,
 			  `connections` double DEFAULT NULL,
 			  `migratie` double DEFAULT NULL,
+			  `eosl_kost` double DEFAULT NULL,
 			  `project_kost` double DEFAULT NULL,
 			  `totale_kost` double DEFAULT NULL,
 			  `omgeving` varchar(255) DEFAULT NULL,
@@ -260,10 +308,12 @@ foreach my $record (@$ref) {
 	push @functies, $functie;
 }
 
-# Also collect project management and architecture cost
-$query = "SELECT element, functie, waarde 
+# Collect Kostelementen for EOSL
+$query = "SELECT element, functie, datum, waarde 
 		  FROM kostelementen
-		  WHERE element = 'project'";
+		  WHERE ((element = 'uitdovend') 
+		         OR (element = 'uitgedoofd')
+				 OR (element = 'project'))";
 $ref = do_select($dbh, $query);
 unless (defined $ref) {
 	$log->fatal("Could not collect kostelementen, exiting...");
@@ -272,13 +322,24 @@ unless (defined $ref) {
 foreach my $record (@$ref) {
 	my $element = $$record{element};
 	my $functie = $$record{functie};
+	my $date	= $$record{datum};
 	my $waarde  = $$record{waarde};
-	if (trim(lc($functie)) eq "management") {
-		$mgmt_waarde = $waarde;
-	} elsif (trim(lc($functie)) eq "architectuur") {
-		$arch_waarde = $waarde;
+	if (trim(lc($element)) eq "uitdovend") {
+		$uitdovend_date = $date;
+		$uitdovend_waarde = $waarde;
+	} elsif (trim(lc($element)) eq "uitgedoofd") {
+		$uitgedoofd_date = $date;
+		$uitgedoofd_waarde = $waarde;
+	} elsif (trim(lc($element)) eq "project") {
+		if (trim(lc($functie)) eq "management") {
+			$mgmt_waarde = $waarde;
+		} elsif (trim(lc($functie)) eq "architectuur") {
+			$arch_waarde = $waarde;
+		} else {
+			$log->error("Found unknown project cost for $functie ($waarde)");
+		}
 	} else {
-		$log->error("Found unknown project cost for $functie ($waarde)");
+		$log->warn("Element $element not known");
 	}
 }
 
@@ -328,7 +389,7 @@ foreach my $record (@$ref) {
 		push @vals, $uitgedoofd_hash{$key};
 	}
 	# Get admin data
-	get_attribs($cmdb_id);
+	get_attribs($cmdb_id, $uitdovend_hash{$key}, $uitgedoofd_hash{$key});
 	# Get functionele_naam
 	if (index($full_name, "(") > -1) {
 		# OK - Extract part between brackets as functionele_naam
