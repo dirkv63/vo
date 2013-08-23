@@ -1,4 +1,4 @@
-cmwbt0011.bat
-rls0013.bat
-cmwsi_sys.bat
-process_all.bat
+call cmwbt0011.bat
+call rls0013.bat
+call cmwsi_sys.bat
+call process_data.bat
