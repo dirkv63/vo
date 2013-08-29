@@ -69,7 +69,7 @@ my @fields = qw (cmdb_id naam dienstentype eigenaar_beleidsdomein
 				 connections comp no_comp sw_cnt sw_cnt_bou 
 				 assessment migratie eosl_kost project_kost totale_kost 
 				 so_toepassingsmanager vo_applicatiebeheerder msgstr 
-				 computer_uitdovend computer_uitgedoofd
+				 eosl_strategy computer_uitdovend computer_uitgedoofd
 				 os_uitdovend os_uitgedoofd
 				 component_uitdovend component_uitgedoofd
 				 status_not_defined status_buiten_gebruik status_in_gebruik
@@ -261,6 +261,20 @@ sub get_mgmt($) {
 	return ($so_toepassingsmanager, $vo_applicatiebeheerder);
 }
 
+sub get_eosl_strategy($) {
+	my ($bt_nummer) = @_;
+	my $eosl_strategy = "";
+	my $query = "SELECT `Alg Status`
+		         FROM bedrijfstoepassing_eosl
+				 WHERE Nummer = $bt_nummer";
+	my $ref = do_select($dbh, $query);
+	if (defined $ref) {
+		my $record = @$ref[0];
+		$eosl_strategy = $$record{'Alg Status'};
+	}
+	return $eosl_strategy;
+}
+
 sub get_eosl_factor() {
 	my $eosl_factor;
 	foreach my $label (@eosl_labels) {
@@ -311,7 +325,8 @@ sub get_max_eosl($$$$) {
 
 sub save_results {
 	my ($cmdb_id, $naam, $dienstentype, $eigenaar_beleidsdomein, 
-        $eigenaar_entiteit, $fin_beleidsdomein, $fin_entiteit, $msgref) = @_;
+        $eigenaar_entiteit, $fin_beleidsdomein, $fin_entiteit, 
+		$bt_nummer, $msgref) = @_;
 	if ($comp == 0) {
 		$msg = "Application cannot be linked to a Computer";
 		push @$msgref, $msg;
@@ -339,11 +354,12 @@ sub save_results {
 	$project_kost = sprintf("%.2f", $project_kost);
 	$totale_kost  = sprintf("%.2f", $totale_kost);
 	my ($so_toepassingsmanager, $vo_applicatiebeheerder) = get_mgmt($cmdb_id);
+	my $eosl_strategy = get_eosl_strategy($bt_nummer);
 	my @fields = qw (cmdb_id naam dienstentype eigenaar_beleidsdomein 
 		         eigenaar_entiteit fin_beleidsdomein fin_entiteit
 				 connections comp no_comp sw_cnt sw_cnt_bou job_cnt 
 				 job_cnt_bou assessment migratie eosl_kost project_kost totale_kost 
-				 so_toepassingsmanager vo_applicatiebeheerder msgstr);
+				 so_toepassingsmanager vo_applicatiebeheerder msgstr eosl_strategy);
     my (@vals) = map { eval ("\$" . $_ ) } @fields;
 	# Also add status counters to fields and vals
 	foreach my $status (qw(status_not_defined status_buiten_gebruik status_in_gebruik
@@ -435,6 +451,7 @@ $query = "CREATE TABLE IF NOT EXISTS `apps_checks` (
 			  `project_kost` double DEFAULT NULL,
 			  `totale_kost` double DEFAULT NULL,
 			  `msgstr` text,
+			  `eosl_strategy` varchar(255) DEFAULT NULL,
 			  `computer_uitdovend` date DEFAULT NULL,
 			  `computer_uitgedoofd` date DEFAULT NULL,
 			  `component_uitdovend` date DEFAULT NULL,
@@ -557,11 +574,13 @@ foreach my $record (@$ref) {
 	my $eigenaar_entiteit = $$record{'eigenaar_entiteit'};
 	my $fin_beleidsdomein = $$record{'fin_beleidsdomein'};
 	my $fin_entiteit = $$record{'fin_entiteit'};
+	my $bt_nummer = $$record{'bt_nummer'};
 	$states{$status}++;
 	$top_ci          = $cmdb_id;
 	go_down($cmdb_id, $naam);
 	save_results($top_ci, $naam, $dienstentype, $eigenaar_beleidsdomein, 
-		         $eigenaar_entiteit, $fin_beleidsdomein, $fin_entiteit, \@msgs);
+		         $eigenaar_entiteit, $fin_beleidsdomein, $fin_entiteit,
+				 $bt_nummer, \@msgs);
 }
 
 $log->info("Export apps_checks to excel");

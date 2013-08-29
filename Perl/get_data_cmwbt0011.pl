@@ -110,8 +110,9 @@ sub handle_toepassingomgeving($) {
 		my $eigenaar_entiteit = $$ref{'Eigenaar (entiteit)'};
 		my $fin_beleidsdomein = $$ref{'Financieel beheerder (Beleidsdomein)'};
 		my $fin_entiteit = $$ref{'Financieel beheerder (entiteit)'};
+		my $bt_nummer = $$ref{'Nummer bedrijfstoepassing'};
 		my @fields = qw (ci_class naam status cmdb_id versie omgeving datum_in_gebruik			
-						 datum_buiten_gebruik dienstentype
+						 datum_buiten_gebruik dienstentype bt_nummer
 						 vo_applicatiebeheerder eigenaar_beleidsdomein
 						 eigenaar_entiteit fin_beleidsdomein fin_entiteit);
 		my (@vals) = map { eval ("\$" . $_ ) } @fields;
@@ -257,7 +258,7 @@ $query = "SELECT DISTINCT  `Toepassingomgeving` ,  `Status toepassingomgeving` ,
 				`CMDB referentie omgeving` ,  `Versie` , `Type omgeving` ,  
 				`Datum in gebruik` ,  `Datum buiten gebruik`, `Dienstentype`,
 				`Financieel beheerder (Beleidsdomein)`, `Financieel beheerder (entiteit)`,
-				`Eigenaar (Beleidsdomein)`, `Eigenaar (entiteit)`
+				`Eigenaar (Beleidsdomein)`, `Eigenaar (entiteit)`, `Nummer bedrijfstoepassing`
 		  FROM  `cmwbt0011`
 		  WHERE `CMDB referentie omgeving` > 0";
 my $ref = do_select($dbh, $query);
