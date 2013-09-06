@@ -64,7 +64,7 @@ my ($sw_cnt, $job_cnt, %locations);
 my (%computer_uitdovend, %component_uitdovend, %os_uitdovend);
 my (%computer_uitgedoofd, %component_uitgedoofd, %os_uitgedoofd);
 my @fields = qw (cmdb_id naam ci_type ci_categorie producent product
-				 locatie sw_cnt job_cnt connections msgstr
+				 locatie sw_cnt job_cnt connections msgstr status
 				 status_not_defined status_buiten_gebruik status_in_gebruik
 				 status_in_stock status_nieuw status_not_niet_in_gebruik);
 
@@ -338,7 +338,7 @@ sub go_up($$$) {
 }
 
 sub save_results {
-	my ($cmdb_id, $naam, $ci_type, $ci_categorie, $locatie, $producent, $product) = @_;
+	my ($cmdb_id, $naam, $ci_type, $ci_categorie, $locatie, $producent, $product, $status) = @_;
 	# Remove duplicates from msgs array
 	my %msghash = map { $_, 1} @msgs;
 	my $msgstr = join ("\n", keys %msghash);
@@ -444,6 +444,7 @@ $query = "CREATE TABLE IF NOT EXISTS `system_checks` (
 			  `job_cnt` double DEFAULT NULL,
 			  `connections` double DEFAULT NULL,
 			  `msgstr` text,
+			  `status` varchar(255) DEFAULT NULL,
 			  `status_not_defined` int(11) DEFAULT NULL,
 			  `status_buiten_gebruik` int(11) DEFAULT NULL,
 			  `status_in_gebruik` int(11) DEFAULT NULL,
@@ -503,7 +504,7 @@ foreach my $record (@$ref) {
 	}
 	$states{$status}++;
 	go_up($cmdb_id, $naam, $locatie);
-	save_results($cmdb_id, $naam, $ci_type, $ci_categorie, $locatie, $producent, $product);
+	save_results($cmdb_id, $naam, $ci_type, $ci_categorie, $locatie, $producent, $product, $status);
 }
 
 # Export the results to excel files

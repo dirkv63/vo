@@ -53,7 +53,7 @@ my ($uitdovend_date, $uitdovend_waarde, $uitgedoofd_date, $uitgedoofd_waarde);
 my @fields_check = qw (cmdb_id naam ci_type ci_categorie locatie connections 
 				       status_not_defined status_buiten_gebruik status_in_gebruik
 				       status_in_stock status_nieuw status_not_niet_in_gebruik);
-my @fields_excel = qw (cmdb_id naam financieel_beheerder eigenaar 
+my @fields_excel = qw (cmdb_id naam financieel_beheerder eigenaar status
 					   dienstentype omgeving functionele_naam kenmerk
 					   migratie eosl_kost project_kost totale_kost uitdovend_datum 
 					   uitgedoofd_datum connections ci_type ci_categorie locatie);
@@ -266,6 +266,7 @@ $query = "CREATE TABLE IF NOT EXISTS `system_cost` (
 			  `ci_type` varchar(255) DEFAULT NULL,
 			  `ci_categorie` varchar(255) DEFAULT NULL,
 			  `locatie` varchar(255) DEFAULT NULL,
+			  `status` varchar(255) DEFAULT NULL,
 			  `connections` double DEFAULT NULL,
 			  `migratie` double DEFAULT NULL,
 			  `eosl_kost` double DEFAULT NULL,
@@ -388,6 +389,9 @@ foreach my $record (@$ref) {
 		push @fields, "uitgedoofd_datum";
 		push @vals, $uitgedoofd_hash{$key};
 	}
+	my $status = $$record{'status'};
+	push @fields, "status";
+	push @vals, $status;
 	# Get admin data
 	get_attribs($cmdb_id, $uitdovend_hash{$key}, $uitgedoofd_hash{$key});
 	# Get functionele_naam
