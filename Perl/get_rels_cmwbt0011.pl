@@ -4,6 +4,20 @@ get_rels_cmwbt0011 - This file gets the relations from CMWBT0011.
 
 =head1 VERSION HISTORY
 
+version 1.2 25 September 2013 DV
+
+=over 4
+
+=item *
+
+Allow relation levels > 9, accept two digits.
+
+=item *
+
+Check for 'Afhankelijk Relatie' loops, delete the loop. Remark that this will remove a <-> b loops, but not a -> b -> c -> a loops.
+
+=back
+
 version 1.1 23 July 2013 DV
 
 =over 4
@@ -83,8 +97,8 @@ use DbUtil qw(db_connect do_select do_stmt );
 # Trace Warnings
 ################
 
-use Carp;
-$SIG{__WARN__} = sub { Carp::confess( @_ ) };
+# use Carp;
+# $SIG{__WARN__} = sub { Carp::confess( @_ ) };
 
 #############
 # subroutines
@@ -176,10 +190,12 @@ sub evaluate_rel($$$$$$$) {
 	if (index($rel_str, "G") > -1) {
 		# Gebruiksrelatie
 		$relation = "maakt gebruik van";
-		$level = substr $rel_str, -4, 1;
+		$level = substr $rel_str, 0, -3;
+		$level =~ s/^=+//;	# Remove leading '=' from level string
 	} else {
 		$relation = "is afhankelijk van";
-		$level = substr $rel_str, -3, 1;
+		$level = substr $rel_str, 0, -2;
+		$level =~ s/^=+//;	# Remove leading '=' from level string
 	}
 	if ($level == 1) {
 		if ($cmdb_id_tpo > -1) {
@@ -340,6 +356,30 @@ $query = "ALTER TABLE  `relations` ADD INDEX (`cmdb_id_target`)";
 unless (do_stmt($dbh, $query)) {
 	$log->fatal("Could not add index cmdb_id_target to relations table");
 	exit_application(1);
+}
+
+# Verify and remove loops in afhankelijk van relations
+$query = "SELECT a.cmdb_id_source, a.cmdb_id_target 
+		  FROM relations a, relations b 
+		  WHERE a.relation = 'is afhankelijk van' AND
+		        b.relation = 'is afhankelijk van' AND 
+				a.cmdb_id_source = b.cmdb_id_target AND 
+				a.cmdb_id_target = b.cmdb_id_source AND 
+				a.cmdb_id_source > a.cmdb_id_target";
+$ref = do_select($dbh, $query);
+foreach my $arrayref (@$ref) {
+	my $cmdb_id_source = $$arrayref{'cmdb_id_source'};
+	my $cmdb_id_target = $$arrayref{'cmdb_id_target'};
+	my $query = "DELETE FROM relations 
+				 WHERE cmdb_id_source = '$cmdb_id_source'
+				   AND cmdb_id_target = '$cmdb_id_target'
+				   AND relation = 'is afhankelijk van'";
+	my $rv = do_stmt($dbh, $query);
+	if (not defined $rv) {
+		$log->fatal("Failed to remove loop in 'is afhankelijk' relation for $cmdb_id_source - $cmdb_id_target");
+		exit_application(1);
+	}
+	$log->error("Loop in 'is afhankelijk' relation for $cmdb_id_source - $cmdb_id_target");
 }
 
 exit_application(0);

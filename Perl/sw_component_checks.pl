@@ -4,6 +4,16 @@ sw_component_checks.pl - Consolidates the factors related to SW component migrat
 
 =head1 VERSION HISTORY
 
+version 1.1 25 September 2013 DV
+
+=over 4
+
+=item *
+
+Add counter to avoid loop in Go Down procedure.
+
+=back
+
 version 1.0 25 July 2013 DV
 
 =over 4
@@ -43,7 +53,7 @@ No inline options are available. There is a properties\vo.ini file that contains
 ########### 
 
 my ($log, $cfg, $dbh, $top_ci, $msg, @msgs, $computer, $cluster, $connections, %states);
-my (%migratiekost, %assessmentkost);
+my (%migratiekost, %assessmentkost, $loopcnt);
 my @fields = qw (sw_id sw_naam sw_type sw_categorie 
                  comp_id comp_naam comp_type comp_categorie 
 				 connections migratie assessment msgstr 
@@ -118,6 +128,11 @@ Every other CI is connected to one or more computersystems. If there is more tha
 
 sub go_down($$) {
 	my ($cmdb_id, $naam) = @_;
+	$loopcnt++;
+	if ($loopcnt > 100) {
+		$log->error("Go_Down procedure called for $loopcnt times (ID: $cmdb_id), please check.");
+		return;
+	}
 	my $query = "SELECT relation, cmdb_id_target, naam_target, ci_type_target,
 						ci_categorie, status
 				 FROM relations, component
@@ -391,6 +406,7 @@ foreach my $record (@$ref) {
 	undef $computer;
 	undef $cluster;
 	undef %states;
+	$loopcnt = 0;
 	$connections = 0;
 	my $cmdb_id      = $$record{'cmdb_id'};
 	my $naam         = $$record{'naam'};
