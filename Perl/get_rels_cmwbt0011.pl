@@ -200,7 +200,7 @@ sub evaluate_rel($$$$$$$) {
 	if ($level == 1) {
 		if ($cmdb_id_tpo > -1) {
 			# Relation to toepassingsomgeving
-			if ($rel_str eq "G") {
+			if (index($rel_str, "G") > -1) {
 				handle_relation($cmdb_id, $naam, $ci_type, $ci_categorie, $relation, 
 					        $cmdb_id_tpo, $naam_tpo, "Toepassingomgeving", "");
 			} else {
