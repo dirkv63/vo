@@ -159,7 +159,7 @@ sub store_level($$$$$$) {
 	$ci_categorie_hash{$level} = $ci_categorie;
 	$relation_hash{$level} = $relation;
 	# Clear all information on levels above current level
-	for (my $cnt = $level+1; $cnt < 10; $cnt++) {
+	for (my $cnt = $level+1; $cnt < 15; $cnt++) {
 		undef $cmdb_id_hash{$cnt};
 		undef $naam_hash{$cnt};
 		undef $ci_type_hash{$cnt};

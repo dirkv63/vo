@@ -169,6 +169,10 @@ sub go_down($$) {
 			if ((defined $computer) && (not(defined $cluster))) {
 				$msg = "More than one computer found, no cluster defined";
 				push @msgs, $msg;
+				# Duplicate type, make sure to remember Virtual Computer Type
+				if ($ci_type_target eq 'VIRTUELE COMPUTER') {
+					$computer = $cmdb_id_target;
+				}
 			} else {
 				# Be careful, I may be overwriting computers
 				$computer = $cmdb_id_target;
