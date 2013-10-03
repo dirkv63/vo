@@ -366,7 +366,8 @@ $log->info("Investigating Computer Systems in scope for Migration");
 $query = "SELECT * FROM system_checks
 		  WHERE length(locatie) > 5
 		    AND sw_cnt  = 0
-			AND job_cnt = 0";
+			AND job_cnt = 0
+			AND cmdb_id NOT IN (SELECT cmdb_id FROM netwerk)";
 $ref = do_select($dbh, $query);
 foreach my $record (@$ref) {
 	undef @fields;

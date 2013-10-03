@@ -162,12 +162,12 @@ sub go_down($$) {
 		my $status = $$arrayhdl{status} || "not defined";
 		# Handle the component. Assumption is that it should be
 		# software or job component.
-		handle_component($cmdb_id_target, $ci_type_target);
+		handle_component($cmdb_id_target, $ci_type_target, $naam_target, $ci_categorie, $cmdb_id, $naam);
 	}
 }
 
 sub handle_component {
-	my ($cmdb_id, $ci_type) = @_;
+	my ($cmdb_id, $ci_type, $naam_tgt, $ci_categorie_tgt, $cmdb_id_src, $naam_src) = @_;
 	my $table;
 	# Did I find a Software Component or Job?
 	my @sw_types = $cfg->val("TYPES", "sw_type");
@@ -217,6 +217,15 @@ sub handle_component {
 		$states{$status} += $$arrayhdl{$status};
 	}
 	handle_eosl($cmdb_id);
+	# Remember Apps to SW/Job Component link
+	my $cmdb_id_tgt = $cmdb_id;
+	my $ci_type_tgt = $ci_type;
+	@fields = qw (cmdb_id_src naam_src cmdb_id_tgt naam_tgt ci_type_tgt ci_categorie_tgt);
+	my (@vals) = map { eval ("\$" . $_ ) } @fields;
+	unless (create_record($dbh, "apps_cis", \@fields, \@vals)) {
+	    $log->fatal("Could not create record for $cmdb_id_src - $cmdb_id_tgt");
+	    exit_application(1);
+	}
 }
 
 sub handle_eosl($) {
@@ -475,6 +484,29 @@ $query = "CREATE TABLE IF NOT EXISTS `apps_checks` (
 		  ) ENGINE=MyISAM DEFAULT CHARSET=utf8";
 unless (do_stmt($dbh, $query)) {
 	$log->fatal("Could not create table apps_checks, exiting...");
+	exit_application(1);
+}
+
+# Handle table cons_cis
+$query = "DROP TABLE IF EXISTS `apps_cis`";
+unless (do_stmt($dbh, $query)) {
+	$log->fatal("Could not drop table cons_cis, exiting...");
+	exit_application(1);
+}
+
+$query = "CREATE TABLE IF NOT EXISTS `apps_cis` (
+			  `ID` int(11) NOT NULL AUTO_INCREMENT,
+			  `cmdb_id_src` int(11) NOT NULL,
+			  `naam_src` varchar(255) DEFAULT NULL,
+			  `cmdb_id_tgt` int(11) DEFAULT NULL,
+			  `naam_tgt` varchar(255) DEFAULT NULL,
+			  `ci_type_tgt` varchar(255) DEFAULT NULL,
+			  `ci_categorie_tgt` varchar(255) DEFAULT NULL,
+			  PRIMARY KEY (`ID`),
+			  KEY `cmdb_id_tgt` (`cmdb_id_tgt`)
+			) ENGINE=MyISAM DEFAULT CHARSET=utf8";
+unless (do_stmt($dbh, $query)) {
+	$log->fatal("Could not drop table apps_cis, exiting...");
 	exit_application(1);
 }
 

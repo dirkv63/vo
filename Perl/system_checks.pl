@@ -59,7 +59,7 @@ No inline options are available. There is a properties\vo.ini file that contains
 ########### 
 
 my ($log, $cfg, $dbh, @msgs, $connections, %states);
-my ($sw_cnt, $job_cnt, %locations);
+my ($sw_cnt, $job_cnt, %locations, %cons_cis);
 # eosl variables
 my (%computer_uitdovend, %component_uitdovend, %os_uitdovend);
 my (%computer_uitgedoofd, %component_uitgedoofd, %os_uitgedoofd);
@@ -316,6 +316,8 @@ sub go_up($$$) {
 			$locations{$cmdb_id_source} = $location_comp;
 		}
 		handle_eosl_data($cmdb_id, $cmdb_id_source, $ci_type_source, $ci_categorie);
+		# Remember ci on this physical computer
+		$cons_cis{$cmdb_id_source} = "$naam_source|$ci_type_source|$ci_categorie";
 		# Did I find a Software Component or Job?
 		my @sw_types = $cfg->val("TYPES", "sw_type");
 		my @job_types = $cfg->val("TYPES", "job_type");
@@ -383,6 +385,19 @@ sub save_results {
 	}
 }
 
+sub save_cons_cis($$) {
+	my ($cmdb_id_src, $naam_src) = @_;
+	while (my ($cmdb_id_tgt, $value_tgt) = each %cons_cis) {
+		my ($naam_tgt, $ci_type_tgt, $ci_categorie_tgt) = split /\|/, $value_tgt;
+		my @fields = qw (cmdb_id_src naam_src cmdb_id_tgt naam_tgt ci_type_tgt ci_categorie_tgt);
+	    my (@vals) = map { eval ("\$" . $_ ) } @fields;
+	    unless (create_record($dbh, "cons_cis", \@fields, \@vals)) {
+		    $log->fatal("Could not create record for $cmdb_id_src - $cmdb_id_tgt");
+		    exit_application(1);
+	    }
+	}
+}
+
 ######
 # Main
 ######
@@ -430,6 +445,8 @@ unless (do_stmt($dbh, $query)) {
 	exit_application(1);
 }
 
+# Truncate table cons_cis
+
 # CREATE table system_checks
 $query = "CREATE TABLE IF NOT EXISTS `system_checks` (
 			  `ID` int(11) NOT NULL AUTO_INCREMENT,
@@ -458,6 +475,29 @@ unless (do_stmt($dbh, $query)) {
 	exit_application(1);
 }
 
+# Handle table cons_cis
+$query = "DROP TABLE IF EXISTS `cons_cis`";
+unless (do_stmt($dbh, $query)) {
+	$log->fatal("Could not drop table cons_cis, exiting...");
+	exit_application(1);
+}
+
+$query = "CREATE TABLE IF NOT EXISTS `cons_cis` (
+			  `ID` int(11) NOT NULL AUTO_INCREMENT,
+			  `cmdb_id_src` int(11) NOT NULL,
+			  `naam_src` varchar(255) DEFAULT NULL,
+			  `cmdb_id_tgt` int(11) DEFAULT NULL,
+			  `naam_tgt` varchar(255) DEFAULT NULL,
+			  `ci_type_tgt` varchar(255) DEFAULT NULL,
+			  `ci_categorie_tgt` varchar(255) DEFAULT NULL,
+			  PRIMARY KEY (`ID`),
+			  KEY `cmdb_id_tgt` (`cmdb_id_tgt`)
+			) ENGINE=MyISAM DEFAULT CHARSET=utf8";
+unless (do_stmt($dbh, $query)) {
+	$log->fatal("Could not drop table cons_cis, exiting...");
+	exit_application(1);
+}
+
 # Assign EOSL for OS to Computersystem
 $log->info("Assign OS EOSL to computer systems");
 get_eosl_os;
@@ -472,6 +512,7 @@ my $ref = do_select($dbh, $query);
 foreach my $record (@$ref) {
 	undef @msgs;
 	undef %states;
+	undef %cons_cis;
 	$connections = 0;
 	$sw_cnt = 0;
 	$job_cnt = 0;
@@ -505,6 +546,7 @@ foreach my $record (@$ref) {
 	$states{$status}++;
 	go_up($cmdb_id, $naam, $locatie);
 	save_results($cmdb_id, $naam, $ci_type, $ci_categorie, $locatie, $producent, $product, $status);
+	save_cons_cis($cmdb_id, $naam);
 }
 
 # Export the results to excel files

@@ -17,3 +17,6 @@ perl system_cost.pl
 @echo Collect virtual systems associated with Isolated Servers
 @echo ********************************************************
 perl virt_syst_cost.pl
+@echo Verify all computer systems are handled somewhere
+@echo *************************************************
+perl system_verification.pl

@@ -1,4 +1,4 @@
-; Fri Aug 23 17:38:44 CEST 2013
+; Thu Oct 03 17:46:50 CEST 2013
 ; 
 ;+ (version "3.4.8")
 ;+ (build "Build 629")
@@ -352,7 +352,8 @@
 		[ScriptDoc_Class41]
 		[ScriptDoc_Class46]
 		[ScriptDoc_Class30003]
-		[ScriptDoc_Class40000])
+		[ScriptDoc_Class40000]
+		[ScriptDoc_Class60003])
 	(description "When all reports from datawarehouse are loaded into MySQL the process_all bat file will call all perl scripts to process the data and generate reports.")
 	(is_called_by [ScriptDoc_Class30001])
 	(name "process_data.bat")
@@ -367,7 +368,8 @@
 	(reads_from
 		[ScriptDoc_Class42]
 		[ScriptDoc_Class29]
-		[ScriptDoc_Class40003])
+		[ScriptDoc_Class40003]
+		[ScriptDoc_Class50000])
 	(runs_after [ScriptDoc_Class46])
 	(runs_before [ScriptDoc_Class40000])
 	(script_type perl)
@@ -378,7 +380,9 @@
 ([ScriptDoc_Class30004] of  Artifact
 
 	(description "Attributes and cost for the isolated servers in the Boudewijn.")
-	(is_read_from [ScriptDoc_Class40000])
+	(is_read_from
+		[ScriptDoc_Class40000]
+		[ScriptDoc_Class60003])
 	(is_written_by [ScriptDoc_Class30003])
 	(name "system_cost"))
 
@@ -446,7 +450,9 @@
 		[ScriptDoc_Class48]
 		[ScriptDoc_Class10000]
 		[ScriptDoc_Class30005]
-		[ScriptDoc_Class50002])
+		[ScriptDoc_Class50002]
+		[ScriptDoc_Class60006]
+		[ScriptDoc_Class60007])
 	(name "Deliverables"))
 
 ([ScriptDoc_Class37] of  Script
@@ -497,7 +503,12 @@
 		[ScriptDoc_Class20003]
 		[ScriptDoc_Class20007]
 		[ScriptDoc_Class40002]
-		[ScriptDoc_Class50001])
+		[ScriptDoc_Class50001]
+		[ScriptDoc_Class50000]
+		[ScriptDoc_Class60001]
+		[ScriptDoc_Class60002]
+		[ScriptDoc_Class60004]
+		[ScriptDoc_Class60005])
 	(name "vo"))
 
 ([ScriptDoc_Class40] of  Artifact
@@ -517,6 +528,7 @@
 		[ScriptDoc_Class11]
 		[ScriptDoc_Class29])
 	(runs_after [ScriptDoc_Class30003])
+	(runs_before [ScriptDoc_Class60003])
 	(script_type perl)
 	(writes_to
 		[ScriptDoc_Class50001]
@@ -561,7 +573,8 @@
 		[ScriptDoc_Class42]
 		[ScriptDoc_Class10001]
 		[ScriptDoc_Class43]
-		[ScriptDoc_Class45]))
+		[ScriptDoc_Class45]
+		[ScriptDoc_Class60002]))
 
 ([ScriptDoc_Class42] of  Artifact
 
@@ -605,7 +618,8 @@
 	(writes_to
 		[ScriptDoc_Class47]
 		[ScriptDoc_Class48]
-		[ScriptDoc_Class10000]))
+		[ScriptDoc_Class10000]
+		[ScriptDoc_Class60001]))
 
 ([ScriptDoc_Class47] of  Artifact
 
@@ -632,6 +646,15 @@
 	(script_type perl)
 	(writes_to [ScriptDoc_Class6]))
 
+([ScriptDoc_Class50000] of  Artifact
+
+	(description "Table containing migration information related to network equipment. This table is maintained by Belgacom Network team.\nSystems listed in this table are not taken into account anywhere else.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from
+		[ScriptDoc_Class30003]
+		[ScriptDoc_Class60003])
+	(name "netwerk"))
+
 ([ScriptDoc_Class50001] of  Artifact
 
 	(description "This table collects the virtual systems that are associated with the isolated physical computers in the Boudewijn.")
@@ -655,6 +678,71 @@
 		[ScriptDoc_Class10])
 	(is_written_by [ScriptDoc_Class5])
 	(name "cmwbt0011"))
+
+([ScriptDoc_Class60001] of  Artifact
+
+	(description "Overview of all Apps to Software component or Job Component links. This table is used by the Server To Apps application, to show where all physical servers have been used.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from [ScriptDoc_Class60003])
+	(is_written_by [ScriptDoc_Class46])
+	(name "apps_cis"))
+
+([ScriptDoc_Class60002] of  Artifact
+
+	(description "Contains all CIs that are connected to a physical server. This table is used together with the apps_cis table to give evidence where all physical servers are represented in the cost model.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from [ScriptDoc_Class60003])
+	(is_written_by [ScriptDoc_Class41])
+	(name "cons_cis"))
+
+([ScriptDoc_Class60003] of  Script
+
+	(description "Verifies each Physical Computer where it fits in the cost model. First try to find the computer in the network list, then in the application list and finally in the isolated servers list. \n\nEach system must be available in one and only one category.")
+	(is_called_by [ScriptDoc_Class30002])
+	(name "system_verification.pl")
+	(reads_from
+		[ScriptDoc_Class60001]
+		[ScriptDoc_Class60002]
+		[ScriptDoc_Class9]
+		[ScriptDoc_Class50000]
+		[ScriptDoc_Class60005]
+		[ScriptDoc_Class30004])
+	(runs_after [ScriptDoc_Class40000])
+	(script_type perl)
+	(writes_to
+		[ScriptDoc_Class60004]
+		[ScriptDoc_Class60005]
+		[ScriptDoc_Class60006]
+		[ScriptDoc_Class60007]))
+
+([ScriptDoc_Class60004] of  Artifact
+
+	(description "Contains the result of verifying each physical server in Boudewijn.")
+	(is_part_of [ScriptDoc_Class4])
+	(is_written_by [ScriptDoc_Class60003])
+	(name "system_verification"))
+
+([ScriptDoc_Class60005] of  Artifact
+
+	(description "Contains server to application  links")
+	(is_part_of [ScriptDoc_Class4])
+	(is_read_from [ScriptDoc_Class60003])
+	(is_written_by [ScriptDoc_Class60003])
+	(name "srv2apps"))
+
+([ScriptDoc_Class60006] of  Artifact
+
+	(description "Excel containing list of Servers per Application")
+	(is_part_of [ScriptDoc_Class36])
+	(is_written_by [ScriptDoc_Class60003])
+	(name "Servers_per_Application"))
+
+([ScriptDoc_Class60007] of  Artifact
+
+	(description "Contains list of rapport per server, so for each physical server in Boudewijn, the report is listed where the costing for the server is stored.")
+	(is_part_of [ScriptDoc_Class36])
+	(is_written_by [ScriptDoc_Class60003])
+	(name "Servers_per_Rapport.xls"))
 
 ([ScriptDoc_Class7] of  Script
 
@@ -688,6 +776,7 @@
 		[ScriptDoc_Class33]
 		[ScriptDoc_Class37]
 		[ScriptDoc_Class41]
-		[ScriptDoc_Class46])
+		[ScriptDoc_Class46]
+		[ScriptDoc_Class60003])
 	(is_written_by [ScriptDoc_Class8])
 	(name "component"))

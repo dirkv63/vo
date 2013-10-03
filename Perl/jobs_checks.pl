@@ -228,19 +228,19 @@ sub save_results {
 	} else {
 		$comp_type_key = "FYSIEKE COMPUTER";
 	}
-	my $kostkey = $sw_type . $sw_categorie . $comp_type_key;
-	if (defined $migratiekost{$kostkey}) {
-		$migratie = $migratiekost{$kostkey};
-	} else {
-		$log->trace("Migratiekosten voor $sw_type $sw_categorie $comp_type_key niet gevonden");
+	# my $kostkey = $sw_type . $sw_categorie . $comp_type_key;
+	# if (defined $migratiekost{$kostkey}) {
+	#	$migratie = $migratiekost{$kostkey};
+	# } else {
+	#	$log->trace("Migratiekosten voor $sw_type $sw_categorie $comp_type_key niet gevonden");
 		$migratie = 0;
-	}
-	if (defined $assessmentkost{$kostkey}) {
-		$assessment = $assessmentkost{$kostkey};
-	} else {
-		$log->trace("Complexiteitkosten voor $sw_type $sw_categorie $comp_type_key niet gevonden");
+	# }
+	# if (defined $assessmentkost{$kostkey}) {
+	#	$assessment = $assessmentkost{$kostkey};
+	# } else {
+	#	$log->trace("Complexiteitkosten voor $sw_type $sw_categorie $comp_type_key niet gevonden");
 		$assessment = 0;
-	}
+	# }
 	# Collect states
 	my ($status_not_defined, $status_buiten_gebruik, $status_in_gebruik,
 		$status_in_stock, $status_nieuw, $status_not_niet_in_gebruik);
