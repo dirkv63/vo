@@ -200,13 +200,16 @@ sub evaluate_rel($$$$$$$) {
 	if ($level == 1) {
 		if ($cmdb_id_tpo > -1) {
 			# Relation to toepassingsomgeving
-			if (index($rel_str, "G") > -1) {
-				handle_relation($cmdb_id, $naam, $ci_type, $ci_categorie, $relation, 
-					        $cmdb_id_tpo, $naam_tpo, "Toepassingomgeving", "");
-			} else {
+			# At one time Gebruiksrelations should have been stored in reverse order
+			# Not sure why this was - but didn't work due to bug in implementation.
+			# This logic is removed for now.
+			# if (index($rel_str, "G") > -1) {
+			#	handle_relation($cmdb_id, $naam, $ci_type, $ci_categorie, $relation, 
+			#		        $cmdb_id_tpo, $naam_tpo, "Toepassingomgeving", "");
+			# } else {
 				handle_relation($cmdb_id_tpo, $naam_tpo, "Toepassingomgeving", "",
 							    $relation, $cmdb_id, $naam, $ci_type, $ci_categorie);
-			}
+			# }
 		} 
 		store_level($cmdb_id, $naam, $ci_type, $ci_categorie, $level, $relation);
 	} else {

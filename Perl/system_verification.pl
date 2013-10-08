@@ -249,19 +249,19 @@ while (my ($cmdb_id, $naam) = each %comp2check) {
 	my $source = "";
 	my $msg = "";
 	if (exists $isolated{$cmdb_id}) {
-		$source = "Geïsoleerde servers Rapport";
+		$source = "Geïsoleerde servers Rapport - Server_Migratie.xls";
 	}
 	if (exists $netwerk{$cmdb_id}) {
 		if (length($source) > 2) {
 			$msg .= " ook in $source rapport";
 		}
-		$source = "Netwerk Rapport";
+		$source = "Netwerk Rapport - Netwerk_DC_Migratie.xls";
 	}
 	if (exists $comp2apps{$cmdb_id}) {
 		if (length($source) > 2) {
 			$msg .= " ook in $source rapport";
 		}
-		$source = "Applicatie Rapport";
+		$source = "Applicatie Rapport - Apps_Migratie.xls (via Servers_per_Applicatie.xls)";
 	}
 	if (length($source) == 0) {
 		$msg = "Server NIET gevonden in één van de rapporten";
