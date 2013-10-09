@@ -309,6 +309,14 @@ sub go_up($$$) {
 		my $ci_categorie = $$arrayhdl{ci_categorie};
 		my $status = $$arrayhdl{status} || "not defined";
 		my $ci_class = $$arrayhdl{ci_class};
+		# Check if I have been here before for this physical computer
+		if (exists $cons_cis{$cmdb_id_source}) {
+			my $msg = "This component ($cmdb_id_source) has been seen already from Physical computer";
+			push @msgs, $msg;
+			next;
+		}
+		# Remember ci on this physical computer
+		$cons_cis{$cmdb_id_source} = "$naam_source|$ci_type_source|$ci_categorie";
 		# Update status count and number of connections
 		$states{$status}++;
 		$connections++;
@@ -316,8 +324,6 @@ sub go_up($$$) {
 			$locations{$cmdb_id_source} = $location_comp;
 		}
 		handle_eosl_data($cmdb_id, $cmdb_id_source, $ci_type_source, $ci_categorie);
-		# Remember ci on this physical computer
-		$cons_cis{$cmdb_id_source} = "$naam_source|$ci_type_source|$ci_categorie";
 		# Did I find a Software Component or Job?
 		my @sw_types = $cfg->val("TYPES", "sw_type");
 		my @job_types = $cfg->val("TYPES", "job_type");

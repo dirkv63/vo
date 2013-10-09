@@ -166,9 +166,10 @@ sub go_down($$) {
 		$connections++;
 		# Did I find a Fysieke or Virtuele Computer?
 		if ($ci_type_target =~ m/ computer$/i) {
-			if ((defined $computer) && (not(defined $cluster))) {
-				$msg = "More than one computer found, no cluster defined";
-				push @msgs, $msg;
+#			if ((defined $computer) && (not(defined $cluster))) {
+			if (defined $computer) {
+#				$msg = "More than one computer found, no cluster defined";
+#				push @msgs, $msg;
 				# Duplicate type, make sure to remember Virtual Computer Type
 				if ($ci_type_target eq 'VIRTUELE COMPUTER') {
 					$computer = $cmdb_id_target;
@@ -403,7 +404,7 @@ $log->info("Investigating SW Components");
 # Get all the SW Components
 $query = "SELECT `cmdb_id`, `naam`, `ci_categorie`, `ci_type`, status
 			 FROM component
-			 WHERE $where_str";
+			 WHERE ($where_str)";
 $ref = do_select($dbh, $query, @ci_types);
 foreach my $record (@$ref) {
 	undef @msgs;

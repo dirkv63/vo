@@ -1,0 +1,28 @@
+CREATE TABLE  "SYSTEM_CHECKS" 
+   (	"ID" NUMBER, 
+	"CMDB_ID" NUMBER, 
+	"NAAM" VARCHAR2(255), 
+	"CI_TYPE" VARCHAR2(255), 
+	"CI_CATEGORIE" VARCHAR2(255), 
+	"PRODUCENT" VARCHAR2(255), 
+	"PRODUCT" VARCHAR2(255), 
+	"LOCATIE" VARCHAR2(255), 
+	"SW_CNT" NUMBER, 
+	"JOB_CNT" NUMBER, 
+	"CONNECTIONS" NUMBER, 
+	"MSGSTR" VARCHAR2(255), 
+	"STATUS" VARCHAR2(255), 
+	 CONSTRAINT "SYSTEM_CHECKS_PK" PRIMARY KEY ("ID") ENABLE
+   ) ;
+
+CREATE OR REPLACE TRIGGER  "bi_SYSTEM_CHECKS" 
+  before insert on "SYSTEM_CHECKS"              
+  for each row 
+begin  
+  if :new."ID" is null then
+    select "SYSTEM_CHECKS_SEQ".nextval into :new."ID" from sys.dual;
+  end if;
+end;
+/
+ALTER TRIGGER  "bi_SYSTEM_CHECKS" ENABLE;
+
