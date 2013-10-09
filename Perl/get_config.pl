@@ -192,9 +192,9 @@ sub go_down($$) {
 	my ($cmdb_id, $name) = @_;
 	my $query = "SELECT relation, cmdb_id_target, naam_target, ci_type_target
 				 FROM relations
-				 WHERE cmdb_id_source = '$cmdb_id'
-				   AND naam_source    = '$name'";
-	my $ref = do_select($dbh, $query);
+				 WHERE cmdb_id_source = ?
+				   AND naam_source    = ?";
+	my $ref = do_select($dbh, $query, ($cmdb_id, $name));
 	foreach my $arrayhdl (@$ref) {
 		my $relation = $$arrayhdl{relation};
 		my $cmdb_id_target = $$arrayhdl{cmdb_id_target};
@@ -233,9 +233,9 @@ sub go_up($$) {
 	my ($cmdb_id, $name) = @_;
 	my $query = "SELECT relation, cmdb_id_source, naam_source, ci_type_source
 				 FROM relations
-				 WHERE cmdb_id_target = '$cmdb_id'
-				   AND naam_target    = '$name'";
-	my $ref = do_select($dbh, $query);
+				 WHERE cmdb_id_target = ?
+				   AND naam_target    = ?";
+	my $ref = do_select($dbh, $query, ($cmdb_id, $name));
 	foreach my $arrayhdl (@$ref) {
 		my $relation = $$arrayhdl{relation};
 		my $cmdb_id_source = $$arrayhdl{cmdb_id_source};

@@ -1,0 +1,23 @@
+CREATE TABLE  "KOSTELEMENTEN" 
+   (	"ID" NUMBER, 
+	"ELEMENT" VARCHAR2(255), 
+	"CI_CATEGORIE" VARCHAR2(255), 
+	"CI_TYPE" VARCHAR2(255), 
+	"COMPUTERTYPE" VARCHAR2(255), 
+	"FUNCTIE" VARCHAR2(255), 
+	"DATUM" DATE, 
+	"WAARDE" NUMBER, 
+	 CONSTRAINT "KOSTELEMENTEN_PK" PRIMARY KEY ("ID") ENABLE
+   ) ;
+
+CREATE OR REPLACE TRIGGER  "bi_KOSTELEMENTEN" 
+  before insert on "KOSTELEMENTEN"              
+  for each row 
+begin  
+  if :new."ID" is null then
+    select "KOSTELEMENTEN_SEQ".nextval into :new."ID" from sys.dual;
+  end if;
+end;
+/
+ALTER TRIGGER  "bi_KOSTELEMENTEN" ENABLE;
+

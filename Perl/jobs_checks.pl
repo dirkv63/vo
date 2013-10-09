@@ -126,11 +126,11 @@ sub go_down($$) {
 	my $query = "SELECT relation, cmdb_id_target, naam_target, ci_type_target,
 						ci_categorie, status
 				 FROM relations, component
-				 WHERE cmdb_id_source = '$cmdb_id'
-				   AND naam_source    = '$naam'
+				 WHERE cmdb_id_source = ?
+				   AND naam_source    = ?
 				   AND cmdb_id_target = cmdb_id
 				   AND relation = 'is afhankelijk van'";
-	my $ref = do_select($dbh, $query);
+	my $ref = do_select($dbh, $query,($cmdb_id, $naam));
 	# Note that singleton_select assumes that only one record returns,
 	# it doesn't allow error handling locally.
 	my $nr_rels = @$ref;
