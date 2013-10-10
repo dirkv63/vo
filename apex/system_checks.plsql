@@ -12,7 +12,9 @@ DECLARE
            STATUS,
            LOCATIE,
            PRODUCT,
-           PRODUCENT
+           PRODUCENT,
+           UITDOVEND_DATUM,
+           UITGEDOOFD_DATUM
     from COMPONENT
     where CI_TYPE = 'FYSIEKE COMPUTER';
       
@@ -24,18 +26,19 @@ DECLARE
         status component.status%TYPE,
         locatie component.locatie%TYPE,
         product component.product%TYPE,
-        producent component.producent%TYPE);
+        producent component.producent%TYPE,
+        uitdovend_datum component.uitdovend_datum%TYPE,
+        uitgedoofd_datum component.uitgedoofd_datum%TYPE);
 
-    TYPE rel_rec IS RECORD (
-        cmdb_id relations.cmdb_id_source%TYPE,
-        naam relations.naam_source%TYPE,
-        ci_type relations.ci_type_source%TYPE,
-        ci_categorie relations.ci_categorie_source%TYPE);
-    
+    TYPE eosl_rec IS RECORD (
+        uitdovend_datum DATE,
+        uitgedoofd_datum DATE);
+
+    eosl eosl_rec;
     
     TYPE allvalues_type IS TABLE OF number INDEX BY varchar2(255);
     allvalues allvalues_type;  -- remember all server to ci relations for cons_cis table
-    locations allvalues_type; -- remember all locations for derived locations table   
+    locations allvalues_type;  -- remember all locations for derived locations table   
 
     comp comp_rec;
     next_ci comp_rec;
@@ -49,17 +52,71 @@ DECLARE
     v_loopcnt number;
     v_locatie component.locatie%TYPE;
 
-    PROCEDURE go_up (cmdb_id2chk IN relations.cmdb_id_target%TYPE)
+    FUNCTION get_smallest(left_date IN DATE, right_date IN DATE)
+    RETURN date
+    IS
+    BEGIN
+        IF ((length(left_date) > 2) AND (length(right_date) > 2)) THEN
+           RETURN least(left_date, right_date);
+        ELSIF (length(left_date) IS NULL) THEN
+            RETURN right_date;
+        ELSE
+            RETURN left_date;
+        END IF;
+    END;
+
+    PROCEDURE get_os_eosl(cmdb_id_in IN component.cmdb_id%TYPE, thiseosl IN OUT eosl_rec) 
+    IS
+        this_uitdovend_datum DATE;
+        this_uitgedoofd_datum DATE;
+    BEGIN
+        -- In exceptional situations the Server has more than one
+        -- Operating System, e.g. ID: 60106
+        SELECT min(uitdovend_datum), min(uitgedoofd_datum)
+        INTO this_uitdovend_datum, this_uitgedoofd_datum
+        FROM component, relations
+        WHERE cmdb_id_target = cmdb_id_in
+        AND relation = 'is afhankelijk van'
+        AND ci_categorie_source = 'OPERATING SYSTEEM'
+        AND cmdb_id = cmdb_id_source;
+        thiseosl.uitdovend_datum := get_smallest(this_uitdovend_datum, thiseosl.uitdovend_datum);
+        thiseosl.uitgedoofd_datum := get_smallest(this_uitgedoofd_datum, thiseosl.uitgedoofd_datum);
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RETURN;
+    END;
+
+    PROCEDURE safe_cons_eosl(cmdb_id_in IN component.cmdb_id%TYPE, eosl IN eosl_rec) 
+    IS
+    BEGIN
+        IF (not((eosl.uitdovend_datum IS NULL) AND (eosl.uitgedoofd_datum IS NULL))) THEN
+            INSERT INTO cons_eosl(cmdb_id, uitdovend_datum, uitgedoofd_datum)
+                VALUES (cmdb_id_in, eosl.uitdovend_datum, eosl.uitgedoofd_datum);
+        END IF;
+    END;
+
+    PROCEDURE go_up (cmdb_id2chk IN relations.cmdb_id_target%TYPE, ck_eosl IN OUT eosl_rec)
     IS
         CURSOR tgt_rel_cursor IS
         SELECT CMDB_ID_SOURCE,
                NAAM_SOURCE,
                CI_TYPE_SOURCE,
-               CI_CATEGORIE_SOURCE
-        FROM RELATIONS
+               CI_CATEGORIE_SOURCE,
+               UITDOVEND_DATUM,
+               UITGEDOOFD_DATUM
+        FROM RELATIONS, COMPONENT
         WHERE CMDB_ID_TARGET = cmdb_id2chk
           AND NOT (CI_CATEGORIE_SOURCE = 'OPERATING SYSTEEM')
-          AND RELATION = 'is afhankelijk van';
+          AND RELATION = 'is afhankelijk van'
+          AND CMDB_ID = CMDB_ID_SOURCE;
+
+        TYPE rel_rec IS RECORD (
+            cmdb_id relations.cmdb_id_source%TYPE,
+            naam relations.naam_source%TYPE,
+            ci_type relations.ci_type_source%TYPE,
+            ci_categorie relations.ci_categorie_source%TYPE,
+            uitdovend_datum component.uitdovend_datum%TYPE,
+            uitgedoofd_datum component.uitgedoofd_datum%TYPE);
 
         tgt_rel rel_rec;
         v_allvals_key varchar2(255);
@@ -92,6 +149,15 @@ DECLARE
                     INSERT INTO derived_locations (cmdb_id, locatie)
                         VALUES (tgt_rel.cmdb_id, v_locatie);
                 END IF;
+                -- Get oldest EOSL dates
+                -- If it is Computer System, then also look at its Operating System
+                IF ((tgt_rel.ci_type = 'FYSIEKE COMPUTER') OR (tgt_rel.ci_type = 'VIRTUELE COMPUTER')) THEN
+                    get_os_eosl(tgt_rel.cmdb_id, ck_eosl);
+                END IF;
+                ck_eosl.uitdovend_datum  := get_smallest(tgt_rel.uitdovend_datum,  ck_eosl.uitdovend_datum);
+                ck_eosl.uitgedoofd_datum := get_smallest(tgt_rel.uitgedoofd_datum, ck_eosl.uitgedoofd_datum);
+                -- Remember this in cons_eosl table
+                safe_cons_eosl(tgt_rel.cmdb_id, ck_eosl);
                 -- Remember this combination in the cons_cis table
                 INSERT INTO cons_cis (cmdb_id_src, naam_src, 
                     cmdb_id_tgt, naam_tgt, ci_type_tgt, ci_categorie_tgt)
@@ -113,7 +179,7 @@ DECLARE
                 ELSIF (length(tgt_rel.ci_type) IS NULL) THEN
                     v_msg := v_msg || 'Pad van Computer naar Applicatie zonder SW/Job component. * ';
                 ELSE
-                    go_up(tgt_rel.cmdb_id);
+                    go_up(tgt_rel.cmdb_id, ck_eosl);
                 END IF;         
             END IF;
         END LOOP;
@@ -169,9 +235,13 @@ BEGIN
         ELSE
             v_locatie := '';
         END IF;
+        eosl.uitdovend_datum := comp.uitdovend_datum;
+        eosl.uitgedoofd_datum := comp.uitgedoofd_datum;
         v_top_cmdb_id := comp.cmdb_id;
         v_top_naam := comp.naam;
-        go_up(comp.cmdb_id);
+        get_os_eosl(comp.cmdb_id, eosl);
+        safe_cons_eosl(comp.cmdb_id, eosl);
+        go_up(comp.cmdb_id, eosl);
         save_results(comp);
         
 END LOOP; 

@@ -73,7 +73,6 @@ DECLARE
             FROM derived_locations
             WHERE cmdb_id = src_rel.cmdb_id;
 
-p_log(proc_name, 'T', 'Found ID ' || src_rel.cmdb_id || ' Type: ' || src_rel.ci_type);
             IF ((src_rel.ci_type = 'ANDERE TOEP.COMP.INSTALL.') OR
                 (src_rel.ci_type = 'DB TOEP.COMP-INSTALL.') OR
                 (src_rel.ci_type = 'RAPPORTEN') OR
@@ -83,7 +82,6 @@ p_log(proc_name, 'T', 'Found ID ' || src_rel.cmdb_id || ' Type: ' || src_rel.ci_
                 IF (thislocation > 0) THEN
                     v_sw_cnt_bou := v_sw_cnt_bou + 1;
                 END IF;
-p_log(proc_name, 'T', 'Found sw component');
                 SELECT * INTO this_sw
                 FROM sw_checks
                 WHERE sw_id = src_rel.cmdb_id;
@@ -96,19 +94,23 @@ p_log(proc_name, 'T', 'Found sw component');
                 IF (thislocation > 0) THEN
                     v_job_cnt_bou := v_job_cnt_bou + 1;
                 END IF;
-p_log(proc_name, 'T', 'Found job component');
                 SELECT * INTO this_sw
                 FROM job_checks
                 WHERE sw_id = src_rel.cmdb_id;
             ELSE
                 v_msg := v_msg || 'SW/Job Component verwacht, ' || src_rel.ci_type || ' gevonden. ID: ' || src_rel.cmdb_id;
-                RETURN;
+                GOTO unexpected_record_next;
             END IF;
-p_log(proc_name, 'T', 'Handling whatever component I found');
-            v_connections := v_connections + this_sw.connections;
-            v_assessment := v_assessment + this_sw.assessment;
+            IF (this_sw.connections > 0) THEN
+                v_connections := v_connections + this_sw.connections;
+            END IF;
+            IF (this_sw.assessment > 0) THEN
+                v_assessment := v_assessment + this_sw.assessment;
+            END IF;
             IF (thislocation > 0) THEN
-                v_migratie := v_migratie + this_sw.migratie;
+                IF (this_sw.migratie > 0) THEN
+                    v_migratie := v_migratie + this_sw.migratie;
+                END IF;
             END IF;
             IF (length(this_sw.comp_naam) > 0) THEN
                 v_comp := v_comp + 1;
@@ -116,12 +118,15 @@ p_log(proc_name, 'T', 'Handling whatever component I found');
                 v_no_comp := v_no_comp + 1;
             END IF;
 
-p_log(proc_name, 'T', 'Ready to insert into apps_cis');
+p_log(proc_name, 'T', 'ID: ' || this_sw.sw_id || ' assessment: ' || this_sw.assessment || ' Total assessment: ' || v_assessment);
             -- Remember Applicatie - Component Link
             INSERT INTO apps_cis (cmdb_id_src, naam_src, 
                 cmdb_id_tgt, naam_tgt, ci_type_tgt, ci_categorie_tgt)
             VALUES (next_rel.cmdb_id, next_rel.naam, 
                 src_rel.cmdb_id, src_rel.naam, src_rel.ci_type, src_rel.ci_categorie);
+
+            <<unexpected_record_next>>
+            NULL;
 
         END LOOP;
 
@@ -133,6 +138,7 @@ p_log(proc_name, 'T', 'Ready to insert into apps_cis');
         v_project_kost apps_checks.project_kost%TYPE;
         v_totale_kost apps_checks.totale_kost%TYPE;
     BEGIN
+        p_log('proc_name', 'T', 'Assessment cost so far: ' || v_assessment);
         IF (v_comp = 0)  THEN
             v_msg := v_msg || 'Applicatie kan niet aan computer gelinkt worden. * ';
         END IF;
