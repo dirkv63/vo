@@ -17,7 +17,8 @@ CREATE OR REPLACE PROCEDURE p_get_cmwbt0011_comp
            OS,
            VERSIE_OS,
            HWSW,
-           LOCATIE 
+           LOCATIE,
+           OMGEVING
     from CMWBT0011;
 
     TYPE comp_record IS RECORD (
@@ -34,7 +35,8 @@ CREATE OR REPLACE PROCEDURE p_get_cmwbt0011_comp
     os component.os%TYPE,
     os_versie component.os_versie%TYPE,
     hw_sw_flag component.hw_sw_flag%TYPE,
-    locatie component.locatie%TYPE);
+    locatie component.locatie%TYPE,
+    omgeving component.locatie%TYPE);
     
     comp comp_record;
 
@@ -49,13 +51,13 @@ BEGIN
         -- dbms_output.put_line(RPAD('CMDB_ID: ' || comp.cmdb_id,30,'.') || ' naam: ' || comp.naam);
         INSERT INTO component (ci_categorie, ci_type, cmdb_id, naam, status,
                                eigenaar_entiteit, producent, product, versie, os, os_versie,
-                               hw_sw_flag, locatie, kenmerken)
+                               hw_sw_flag, locatie, kenmerken, omgeving)
         VALUES (comp.ci_categorie, comp.ci_type, comp.cmdb_id, comp.naam, comp.status,
                 comp.eigenaar_entiteit, comp.producent, comp.product, comp.versie, comp.os, comp.os_versie,
-                comp.hw_sw_flag, comp.locatie, comp.kenmerken);
+                comp.hw_sw_flag, comp.locatie, comp.kenmerken, comp.omgeving);
     END LOOP; 
 
     p_log(proc_name, 'I', 'End Procedure');    
 
-END;​
+END;
 
