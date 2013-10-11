@@ -15,7 +15,18 @@ DECLARE
         cmdb_id component.cmdb_id%TYPE,
         naam component.naam%TYPE);
 
+    TYPE eosl_rec IS RECORD (
+        uitdovend_datum DATE,
+        uitgedoofd_datum DATE);
+
+    TYPE fct_rec IS RECORD (
+        uitdovend kostelementen.waarde%TYPE,
+        uitgedoofd kostelementen.waarde%TYPE);
+
+    eosl eosl_rec;
+    cut_eosl eosl_rec;
     rel rel_rec;
+    fct fct_rec;
 
     v_loopcnt number;
     v_msg apps_checks.msgstr%TYPE;
@@ -32,7 +43,41 @@ DECLARE
     v_arch_waarde kostelementen.waarde%TYPE := -1;
     v_def_waarde kostelementen.waarde%TYPE := -1;
 
-    PROCEDURE go_down(next_rel IN rel_rec)
+    FUNCTION get_smallest(left_date IN DATE, right_date IN DATE)
+    RETURN date
+    IS
+    BEGIN
+        IF ((length(left_date) > 2) AND (length(right_date) > 2)) THEN
+           RETURN least(left_date, right_date);
+        ELSIF (length(left_date) IS NULL) THEN
+            RETURN right_date;
+        ELSE
+            RETURN left_date;
+        END IF;
+    END;
+
+    -- Find EOSL information for this CMDB ID. 
+    -- Verify if uitdovend_date / uitgedoofd_date is OLDER than what is known already
+    -- Remember oldest date.
+    PROCEDURE handle_eosl(in_cmdb_id IN component.cmdb_id%TYPE, in_eosl IN OUT eosl_rec)
+    IS
+        ci_eosl eosl_rec;
+    BEGIN
+        -- There should be only one record in cons_eosl, 
+        -- but to be on the safe side....
+        SELECT min(uitdovend_datum), min(uitgedoofd_datum)
+        INTO ci_eosl
+        FROM cons_eosl
+        WHERE cmdb_id = in_cmdb_id;
+        in_eosl.uitdovend_datum  := get_smallest(ci_eosl.uitdovend_datum,  in_eosl.uitdovend_datum);
+        in_eosl.uitgedoofd_datum := get_smallest(ci_eosl.uitgedoofd_datum, in_eosl.uitgedoofd_datum);
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+        -- No issue when no data is found
+        RETURN;
+    END;
+
+    PROCEDURE go_down(next_rel IN rel_rec, in_eosl IN OUT eosl_rec)
     IS
 
         CURSOR src_rel_cursor IS
@@ -55,7 +100,6 @@ DECLARE
         thislocation number;
 
     BEGIN
-        p_log(proc_name, 'T', 'In go down searching for ' || next_rel.cmdb_id);
         v_loopcnt := v_loopcnt + 1;
         IF v_loopcnt > 100 THEN
             p_log(proc_name, 'F', 'Loop Count exceeded');
@@ -64,7 +108,6 @@ DECLARE
         
         OPEN src_rel_cursor;
         LOOP
-            p_log(proc_name, 'T', 'Before Fetch relation table');
             FETCH src_rel_cursor INTO src_rel;
             EXIT WHEN src_rel_cursor%NOTFOUND;
 
@@ -72,6 +115,9 @@ DECLARE
             SELECT count(*) INTO thislocation
             FROM derived_locations
             WHERE cmdb_id = src_rel.cmdb_id;
+
+            -- Handle EOSL Information for this CI.
+            handle_eosl(src_rel.cmdb_id, in_eosl);
 
             IF ((src_rel.ci_type = 'ANDERE TOEP.COMP.INSTALL.') OR
                 (src_rel.ci_type = 'DB TOEP.COMP-INSTALL.') OR
@@ -118,7 +164,6 @@ DECLARE
                 v_no_comp := v_no_comp + 1;
             END IF;
 
-p_log(proc_name, 'T', 'ID: ' || this_sw.sw_id || ' assessment: ' || this_sw.assessment || ' Total assessment: ' || v_assessment);
             -- Remember Applicatie - Component Link
             INSERT INTO apps_cis (cmdb_id_src, naam_src, 
                 cmdb_id_tgt, naam_tgt, ci_type_tgt, ci_categorie_tgt)
@@ -132,13 +177,34 @@ p_log(proc_name, 'T', 'ID: ' || this_sw.sw_id || ' assessment: ' || this_sw.asse
 
     END;
 
-    PROCEDURE save_results(apps IN component%ROWTYPE) 
+    FUNCTION get_eosl_factor(eosl IN eosl_rec)
+    RETURN number
+    IS
+        v_eosl_factor number := 0;
+    BEGIN
+        IF (length(eosl.uitgedoofd_datum) > 2) THEN
+            IF (eosl.uitgedoofd_datum < cut_eosl.uitgedoofd_datum) THEN
+                v_eosl_factor := fct.uitgedoofd;
+            END IF;
+        END IF;
+        IF (length(eosl.uitdovend_datum) > 2) THEN
+            IF (eosl.uitdovend_datum < cut_eosl.uitdovend_datum) THEN
+                IF (fct.uitdovend > v_eosl_factor) THEN
+                    v_eosl_factor := fct.uitdovend;
+                END IF;
+            END IF;
+        END IF;
+        RETURN v_eosl_factor;
+    END;
+
+    PROCEDURE save_results(apps IN component%ROWTYPE, in_eosl IN eosl_rec) 
     IS
         v_work_kost number := 0;
         v_project_kost apps_checks.project_kost%TYPE;
+        v_eosl_kost apps_checks.eosl_kost%TYPE;
         v_totale_kost apps_checks.totale_kost%TYPE;
+        v_eosl_factor number;
     BEGIN
-        p_log('proc_name', 'T', 'Assessment cost so far: ' || v_assessment);
         IF (v_comp = 0)  THEN
             v_msg := v_msg || 'Applicatie kan niet aan computer gelinkt worden. * ';
         END IF;
@@ -152,17 +218,19 @@ p_log(proc_name, 'T', 'ID: ' || this_sw.sw_id || ' assessment: ' || this_sw.asse
             v_migratie := v_def_waarde;
         END IF;
         v_work_kost := v_assessment + v_migratie;
+        v_eosl_factor := get_eosl_factor(in_eosl);
+        v_eosl_kost := v_assessment * v_eosl_factor;
         v_project_kost := (v_work_kost * v_mgmt_waarde) + (v_work_kost * v_arch_waarde);
-        v_totale_kost := v_assessment + v_migratie + v_project_kost;
+        v_totale_kost := v_assessment + v_migratie + v_eosl_kost + v_project_kost;
         INSERT INTO apps_checks (cmdb_id, naam, dienstentype, eigenaar_beleidsdomein, 
              eigenaar_entiteit, fin_beleidsdomein, fin_entiteit,
              connections, comp, no_comp, sw_cnt, sw_cnt_bou, job_cnt, 
-             job_cnt_bou, assessment, migratie, project_kost, totale_kost, 
+             job_cnt_bou, assessment, migratie, eosl_kost, project_kost, totale_kost, 
              so_toepassingsmanager, vo_applicatiebeheerder, msgstr)
         VALUES (apps.cmdb_id, apps.naam, apps.dienstentype, apps.eigenaar_beleidsdomein, 
              apps.eigenaar_entiteit, apps.fin_beleidsdomein, apps.fin_entiteit,
              v_connections, v_comp, v_no_comp, v_sw_cnt, v_sw_cnt_bou, v_job_cnt, 
-             v_job_cnt_bou, v_assessment, v_migratie, v_project_kost, v_totale_kost, 
+             v_job_cnt_bou, v_assessment, v_migratie, v_eosl_kost, v_project_kost, v_totale_kost, 
              apps.so_toepassingsmanager, apps.vo_applicatiebeheerder, v_msg);
     END;
 
@@ -174,7 +242,6 @@ BEGIN
     EXECUTE IMMEDIATE 'truncate table apps_cis';
 
     -- Get values from kostelementen
-p_log(proc_name, 'T', 'Get kostelementen');
     SELECT waarde INTO v_mgmt_waarde
     FROM kostelementen
     WHERE element = 'Project'
@@ -190,7 +257,16 @@ p_log(proc_name, 'T', 'Get kostelementen');
     WHERE element = 'Project'
       AND functie = 'Default';
 
-        p_log(proc_name, 'T', 'Open Cursor');
+    SELECT datum, waarde
+    INTO cut_eosl.uitdovend_datum, fct.uitdovend
+    FROM kostelementen
+    WHERE element = 'uitdovend';
+
+    SELECT datum, waarde
+    INTO cut_eosl.uitgedoofd_datum, fct.uitgedoofd
+    FROM kostelementen
+    WHERE element = 'uitgedoofd';
+
     OPEN apps_cursor;
     LOOP
         FETCH apps_cursor INTO apps;
@@ -208,12 +284,13 @@ p_log(proc_name, 'T', 'Get kostelementen');
         v_assessment := 0;
         v_migratie := 0;
         v_connections := 0;
+        eosl.uitdovend_datum := '';
+        eosl.uitgedoofd_datum := '';
         
         rel.cmdb_id := apps.cmdb_id;
         rel.naam := apps.naam;
-        p_log(proc_name, 'T', 'Going Down');
-        go_down(rel);
-        save_results(apps);
+        go_down(rel, eosl);
+        save_results(apps, eosl);
         
     END LOOP; 
 
@@ -224,4 +301,3 @@ p_log(proc_name, 'T', 'Get kostelementen');
 --         dbms_output.put_line( dbms_utility.format_error_backtrace );
         
 END;
-
