@@ -204,7 +204,7 @@ foreach my $worksheet ($workbook->worksheets()) {
 #	if ($log->is_trace()) {
 #		$log->trace(Dumper $worksheet->{SmallCells});
 #	}
-	import_sheet($worksheet, $dbh, $table, 10, "RLS0011");
+	import_sheet($worksheet, $dbh, $table, 11, "CMWBT0011");
 }
 
 exit_application(0);
