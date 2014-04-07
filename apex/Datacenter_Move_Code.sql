@@ -37,9 +37,9 @@ CREATE OR REPLACE FUNCTION  "LDAP_AUTHENTICATE"
 return boolean
 is
     proc_name CONSTANT logtbl.evt_proc%TYPE := 'LDAP_AUTHENTICATE';
-    err_num number;
-    err_line number;
     err_msg varchar2(255);
+    invalid_credentials EXCEPTION;
+    PRAGMA EXCEPTION_INIT(invalid_credentials, -31202);
     l_ldap_host VARCHAR2(256) := 'ldapp.vlaanderen.be';
     l_ldap_port VARCHAR2(256) := '389';
     l_session DBMS_LDAP.session;
@@ -100,13 +100,15 @@ BEGIN
     p_log(proc_name, 'I', 'User : ' || p_username || ' successful authentication.');
     return true;
 EXCEPTION
+    WHEN invalid_credentials THEN
+        p_log(proc_name, 'I', 'User : ' || p_username || ' invalid credentials');
+        return false;
+
     WHEN OTHERS THEN
         l_retval := DBMS_LDAP.unbind_s(ld => l_session);
         err_msg:= SUBSTR(SQLERRM, 1, 100);
-        err_num:= SQLCODE;
-        err_line := $$PLSQL_LINE;
-        p_log(proc_name, 'E', 'Onverwachte fout lijn: ' || err_line || ' nr: ' || err_num || ' msg: ' || err_msg);
-    RETURN false;
+        p_log(proc_name, 'E', 'Onverwachte fout: ' || err_msg || ' backtrack: ' || DBMS_UTILITY.format_error_backtrace);
+        RETURN false;
 END;
 /
 
@@ -121,7 +123,7 @@ BEGIN
     if (length(netw_id) is null) THEN
         RETURN '';
     ELSIF (length(comp_id) is null) THEN
-        RETURN 'Niet gevonden in CMDB2';
+        RETURN 'Buiten gebruik';
     ELSE
         RETURN 'In CMDB2';
     END IF;
@@ -908,6 +910,101 @@ EXCEPTION
 END;
 /
 
+CREATE OR REPLACE PROCEDURE  "P_SEND_SUMM" 
+    IS
+    
+    proc_name logtbl.evt_proc%TYPE := 'p_send_summ';
+    err_msg varchar2(255);
+    v_p_body_html VARCHAR2(4000); 
+    v_resultaat number;
+    v_msg_token varchar2(50) := 'Mail Log Information Checkpoint';
+    v_title varchar2(50) := 'Boudewijn Datacenter Move';
+    cursor log_cursor IS
+        SELECT * FROM logtbl
+        WHERE evt_time > (select max(evt_time) from logtbl where evt_msg = v_msg_token)
+        AND ((evt_sev = 'E') OR (evt_proc = 'LDAP_AUTHENTICATE'))
+        ORDER BY evt_idx ASC;
+    log_rec logtbl%ROWTYPE;
+    PROCEDURE ip_send_mail
+        IS
+    BEGIN
+        wwv_flow_api.set_security_group_id(51155200479522588); -- Workspace: MOW_DATAROOM_PROD
+        v_p_body_html := '<html><body><h3>' || v_title || '</h3><br>' ||
+                         '<table><tr><th>Index<th>Time<th>Procedure<th>Sev<th>Message</tr>' ||
+                         v_p_body_html || '</table></body></html>';
+        v_resultaat := APEX_MAIL.SEND(
+            p_to        => 'dirk.vermeylen@hp.com',
+            p_from      => 'dirk.vermeylen@hp.com',
+            p_subj      => v_title,
+            p_body      => 'Tekst body',
+            p_body_html => v_p_body_html
+            );
+        APEX_MAIL.PUSH_QUEUE;
+        p_log(proc_name, 'T', 'Summary message sent');
+    EXCEPTION
+        WHEN OTHERS THEN
+        err_msg:= SUBSTR(SQLERRM, 1, 100);
+        p_log(proc_name || ' in ip_send_mail', 'E', 'Onverwachte fout: ' || err_msg || ' backtrack: ' || DBMS_UTILITY.format_error_backtrace);
+    END;
+BEGIN
+    
+    OPEN log_cursor;
+    LOOP
+        FETCH log_cursor INTO log_rec;
+        EXIT WHEN log_cursor%NOTFOUND;
+        v_p_body_html := v_p_body_html ||
+                         '<tr><td>'  || log_rec.evt_idx  || 
+                         '</td><td>' || to_char(log_rec.evt_time, 'DD/MM/YYYY HH24:MI:SS') ||
+                         '</td><td>' || log_rec.evt_proc ||
+                         '</td><td>' || log_rec.evt_sev  ||
+                         '</td><td>' || log_rec.evt_msg  ||
+                         '</td></tr>';
+        IF (length(v_p_body_html) > 3200) THEN 
+            -- Exit loop when message is too long,
+            -- the user has been warned....
+            v_p_body_html := v_p_body_html || '<tr><td><td><td><td><td><b><font color=red>More messages in logtbl...</font></b></tr>';
+            EXIT;
+        END IF;
+    END LOOP;
+            
+            p_log(proc_name, 'I', v_msg_token);
+    IF length(v_p_body_html) > 0 THEN
+        ip_send_mail;
+    END IF;
+        
+EXCEPTION
+    WHEN OTHERS THEN
+    err_msg:= SUBSTR(SQLERRM, 1, 100);
+    p_log(proc_name, 'E', 'Onverwachte fout: ' || err_msg || ' backtrack: ' || DBMS_UTILITY.format_error_backtrace);
+END;
+/
+
+CREATE OR REPLACE PROCEDURE  "P_SEND_MAIL" (p_evt_time IN logtbl.evt_time%TYPE, 
+                                          p_evt_proc IN logtbl.evt_proc%TYPE, 
+                                          p_evt_msg  IN logtbl.evt_msg%TYPE)
+    IS
+    
+    v_p_body_html VARCHAR2(4000); 
+    v_resultaat number;
+    v_evt_time varchar2(20);
+BEGIN
+        
+    wwv_flow_api.set_security_group_id(51155200479522588); -- Workspace: HB_CMDB_PROD
+    v_evt_time := to_char(p_evt_time, 'DD/MM/YYYY HH24:MI:SS');
+    v_p_body_html := '<html><body><h3>Migratie Boudewijn</h3>';
+    v_p_body_html := v_p_body_html || 'Procedure: ' || p_evt_proc || '<br>';
+    v_p_body_html := v_p_body_html || 'Tijd: ' || v_evt_time || '<br>';
+    v_p_body_html := v_p_body_html || 'Bericht: ' || p_evt_msg || '</body></html>';
+    v_resultaat := APEX_MAIL.SEND(p_to => 'dirk.vermeylen@hp.com',
+        p_from => 'dirk.vermeylen@hp.com',
+        p_subj => 'Migratie Boudewijn',
+        p_body => 'Tekst body',
+        p_body_html => v_p_body_html
+        );
+    APEX_MAIL.PUSH_QUEUE;
+END;
+/
+
 CREATE OR REPLACE PROCEDURE  "P_RUN_ALL" 
     IS
     proc_name CONSTANT logtbl.evt_proc%TYPE := 'p_run_all';
@@ -965,6 +1062,9 @@ BEGIN
         sev,
         msg);
     COMMIT;
+    --IF ((proc_name = 'LDAP_AUTHENTICATE') OR (sev = 'E')) THEN
+    --    p_send_mail(sysdate, proc_name, msg);
+    --END IF;
 END;
 /
 
