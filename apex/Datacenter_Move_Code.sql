@@ -56,6 +56,10 @@ is
     v_aantal number;
 BEGIN
     p_log(proc_name, 'I', 'Trying to authenticate User: ' || p_username);
+    if (p_password is null) then 
+        p_log(proc_name, 'I', 'User : ' || p_username || ' failed to authenticate (pwd null)');
+        return false;
+    end if;
     DBMS_LDAP.USE_EXCEPTION := TRUE; 
     --We halen via een admin de dn van de te valideren gebruiker op.
     l_session := DBMS_LDAP.init(hostname => l_ldap_host,
@@ -112,30 +116,55 @@ EXCEPTION
 END;
 /
 
-CREATE OR REPLACE FUNCTION  "ID_IN_COMPONENT" (netw_id IN netwerk.cmdb_id%TYPE, comp_id IN component.cmdb_id%TYPE)
+CREATE OR REPLACE FUNCTION  "ID_IN_COMPONENT" (netw_id IN netwerk.cmdb_id%TYPE, f_status IN component.status%TYPE)
     RETURN varchar2
 IS
     proc_name CONSTANT logtbl.evt_proc%TYPE := 'id_in_component';
-    err_num number;
-    err_line number;
     err_msg varchar2(255);
 BEGIN
-    if (length(netw_id) is null) THEN
+    IF (length(netw_id) is null) THEN
         RETURN '';
-    ELSIF (length(comp_id) is null) THEN
+    ELSIF (length(f_status) is null) THEN
         RETURN 'Buiten gebruik';
     ELSE
-        RETURN 'In CMDB2';
+        RETURN f_status;
     END IF;
 EXCEPTION
     WHEN OTHERS THEN
         err_msg:= SUBSTR(SQLERRM, 1, 100);
-        err_num:= SQLCODE;
-        err_line := $$PLSQL_LINE;
-        p_log(proc_name, 'E', 'Onverwachte fout lijn: ' || err_line || ' nr: ' || err_num || ' msg: ' || err_msg);
+        p_log(proc_name, 'E', 'Onverwachte fout: ' || err_msg || ' backtrack: ' || DBMS_UTILITY.format_error_backtrace);
         RETURN '';
 END;
     
+/
+
+CREATE OR REPLACE FUNCTION  "F_OMGEVING" (f_omg_abb IN component.omgeving%TYPE)
+    RETURN varchar2
+    IS
+    proc_name logtbl.evt_proc%TYPE := 'p_beleidsdocument2xml';
+    err_msg varchar2(255);
+    v_omgeving varchar2(255) := '';
+    
+BEGIN
+        
+    IF (length(f_omg_abb) = 0) THEN
+        RETURN v_omgeving;
+    ELSIF (upper(substr(f_omg_abb,1,1))) = 'P' THEN
+        RETURN 'Productie';
+    ELSIF (upper(substr(f_omg_abb,1,1))) = 'O' THEN
+        RETURN 'Ontwikkeling';
+    ELSIF (upper(substr(f_omg_abb,1,1))) = 'T' THEN
+        RETURN 'Test';
+    ELSE
+        RETURN f_omg_abb;
+    END IF;
+    
+EXCEPTION
+    WHEN OTHERS THEN
+        err_msg:= SUBSTR(SQLERRM, 1, 100);
+        p_log(proc_name, 'E', 'Onverwachte fout: ' || err_msg || ' backtrack: ' || DBMS_UTILITY.format_error_backtrace);
+        RETURN '';
+END;
 /
 
 CREATE OR REPLACE FUNCTION  "F_GET_EOSL_STATUS" (comp_id IN component.cmdb_id%TYPE)
@@ -146,8 +175,6 @@ IS
     status_tx status_tx_type;
     eosl_status_val varchar2(255) := 'InitValue';
     aangepast_op_val apex_user_004.eosl_toepassingen.aangepast_op%TYPE;
-    err_num number;
-    err_line number;
     err_msg varchar2(255);
 BEGIN
     
@@ -157,6 +184,10 @@ BEGIN
     status_tx('Open') := 'Open';
     status_tx('OPGL') := 'Opgelost';
     status_tx('STZP') := 'Stopzetting';
+    status_tx('NOVL') := 'Geen actie nodig';
+    status_tx('IODZ') := 'Actie nodig';
+    status_tx('UPGP') := 'Oplossing in uitvoering';
+    status_tx('OPLB') := 'Oplossing bepaald';
     -- First get most recent EOSL STATUS
     select ALG_STATUS
     into eosl_status_val
@@ -170,7 +201,9 @@ BEGIN
     IF status_tx.EXISTS(eosl_status_val) THEN
         eosl_status_val := status_tx(eosl_status_val);
     ELSE
-        eosl_status_val := eosl_status_val || ' (vertaling!)';
+        -- eosl_status_val := eosl_status_val || ' (vertaling!)';
+        p_log(proc_name, 'E', 'eosl_toepassingen vertaling van status: ' || eosl_status_val);
+        eosl_status_val := '';
     END IF;
         
     RETURN eosl_status_val;
@@ -179,12 +212,128 @@ EXCEPTION
         RETURN '';
     WHEN OTHERS THEN
         err_msg:= SUBSTR(SQLERRM, 1, 100);
-        err_num:= SQLCODE;
-        err_line := $$PLSQL_LINE;
-        p_log(proc_name, 'E', 'Onverwachte fout lijn: ' || err_line || ' nr: ' || err_num || ' msg: ' || err_msg);
+        p_log(proc_name, 'E', 'Onverwachte fout: ' || err_msg || ' backtrack: ' || DBMS_UTILITY.format_error_backtrace);
         RETURN 'Error - See Log';
 END;
     
+/
+
+CREATE OR REPLACE PROCEDURE  "P_SYSTEM_VERIFICATION" 
+    IS
+    
+    proc_name CONSTANT logtbl.evt_proc%TYPE := 'system_verification';
+    CURSOR comp_cursor IS
+    SELECT cmdb_id, naam
+    FROM  component 
+    WHERE ci_type =  'FYSIEKE COMPUTER'
+    AND locatie =  'Boudewijn - Brussel/-1C Computerzaal';
+    TYPE comp_rec IS RECORD (
+        cmdb_id component.cmdb_id%TYPE,
+        naam component.naam%TYPE);
+    comp comp_rec;
+    v_src system_verification.source%TYPE;
+    v_msg system_verification.msg%TYPE;
+    v_res varchar2(255) := '';
+    err_msg varchar2(255);
+    FUNCTION get_isolated (cmdb_id_in IN component.cmdb_id%TYPE)
+    RETURN number
+    IS
+        v_res number := 0;
+    BEGIN
+        SELECT cmdb_id
+        INTO v_res
+        FROM system_cost
+        WHERE cmdb_id = cmdb_id_in;
+        RETURN v_res;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RETURN v_res;
+        WHEN OTHERS THEN
+            err_msg:= SUBSTR(SQLERRM, 1, 100);
+            p_log(proc_name, 'E', 'Onverwachte fout: ' || err_msg || ' backtrack: ' || DBMS_UTILITY.format_error_backtrace);
+END;
+    FUNCTION get_netwerk (cmdb_id_in IN component.cmdb_id%TYPE)
+    RETURN number
+    IS
+        v_res number := 0;
+    BEGIN
+        SELECT cmdb_id
+        INTO v_res
+        FROM netwerk
+        WHERE cmdb_id = cmdb_id_in;
+        RETURN v_res;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RETURN v_res;
+        WHEN OTHERS THEN
+            err_msg:= SUBSTR(SQLERRM, 1, 100);
+            p_log(proc_name, 'E', 'Onverwachte fout: ' || err_msg || ' backtrack: ' || DBMS_UTILITY.format_error_backtrace);
+    END;
+    FUNCTION get_appl (cmdb_id_in IN component.cmdb_id%TYPE)
+    RETURN number
+    IS
+        v_res number := 0;
+    BEGIN
+        SELECT distinct cmdb_id_comp
+        INTO v_res
+        FROM srv2apps
+        WHERE cmdb_id_comp = cmdb_id_in;
+        RETURN v_res;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RETURN v_res;
+        WHEN OTHERS THEN
+            err_msg:= SUBSTR(SQLERRM, 1, 100);
+            p_log(proc_name, 'E', 'Onverwachte fout: ' || err_msg || ' backtrack: ' || DBMS_UTILITY.format_error_backtrace);
+        END;
+BEGIN
+    
+    p_log(proc_name, 'I', 'Start Procedure');
+    EXECUTE IMMEDIATE 'truncate table system_verification';
+    EXECUTE IMMEDIATE 'truncate table srv2apps';
+    INSERT INTO srv2apps  (cmdb_id_comp, naam_comp, cmdb_id_appl, naam_appl) 
+        SELECT DISTINCT c.cmdb_id_src as cmdb_id_comp, 
+                   c.naam_src as naam_comp,
+                   a.cmdb_id_src as cmdb_id_appl,
+                   a.naam_src as naam_appl
+        FROM cons_cis c, apps_cis a
+        WHERE c.cmdb_id_tgt = a.cmdb_id_tgt;
+    OPEN comp_cursor;
+    LOOP
+        FETCH comp_cursor INTO comp;
+        EXIT WHEN comp_cursor%NOTFOUND;
+        v_msg := '';
+        v_src := '';
+        v_res := get_isolated(comp.cmdb_id);
+        IF (length(v_res) > 2) THEN
+            v_src := 'Geïsoleerde Servers Rapport';
+        END IF;
+        v_res := get_netwerk(comp.cmdb_id);
+        IF (length(v_res) > 2) THEN
+            IF (length(v_src) > 2) THEN
+                v_msg := v_msg || ' ook in rapport ' || v_src;
+            END IF;
+            v_src := 'Netwerk Rapport';
+        END IF;
+        v_res := get_appl(comp.cmdb_id);
+        IF (length(v_res) > 2) THEN
+            IF (length(v_src) > 2) THEN
+                v_msg := v_msg || ' ook in rapport ' || v_src;
+            END IF;
+            v_src := 'Applicatie Migratie Rapport';
+        END IF;
+        IF (length(v_src) IS NULL) THEN
+            v_msg := 'Niet gevonden in een rapport';
+        END IF;
+        INSERT INTO system_verification (cmdb_id, naam, source, msg)
+            VALUES (comp.cmdb_id, comp.naam, v_src, v_msg);
+    END LOOP;
+    p_log(proc_name, 'I', 'End Procedure');
+EXCEPTION
+    WHEN OTHERS THEN
+        err_msg:= SUBSTR(SQLERRM, 1, 100);
+        p_log(proc_name, 'E', 'Onverwachte fout: ' || err_msg || ' backtrack: ' || DBMS_UTILITY.format_error_backtrace);   
+END;
 /
 
 CREATE OR REPLACE PROCEDURE  "P_SYSTEM_USED_BY" 
@@ -1018,6 +1167,8 @@ BEGIN
     p_convert_data;
     p_log(proc_name, 'I', 'Calling p_calculate');
     p_calculate;
+    p_log(proc_name, 'I', 'Calling p_system_verification');
+    p_system_verification;
     p_log(proc_name, 'I', 'End Application');
     p_apex_mail_send;
     p_log(proc_name, 'I', 'Email notificatie');
