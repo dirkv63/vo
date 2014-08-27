@@ -163,6 +163,7 @@ sub get_node_attr($) {
 	my $product = $$arrayhdl{PRODUCT} || "";
 	my $status = $$arrayhdl{STATUS} || "";
 	my $versie = $$arrayhdl{VERSIE} || "";
+	$naam =~ s/[^a-zA-Z0-9 _-]//g;
 	my $naam_id = "$naam ($cmdb_id)";
 	my @attrib_arr = ($naam_id, $ci_categorie, $ci_type, $locatie, "$os $os_versie", "$producent $product $versie", $status);
 	if (defined $get_eosl) {

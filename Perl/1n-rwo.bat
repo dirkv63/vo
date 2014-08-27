@@ -1,0 +1,14 @@
+perl dc_get_config.pl -e -f -g -b 76
+perl dc_get_config.pl -e -f -g -b 233
+perl dc_get_config.pl -e -f -g -b 236
+perl dc_get_config.pl -e -f -g -b 331
+perl dc_get_config.pl -e -f -g -b 373
+perl dc_get_config.pl -e -f -g -b 405
+perl dc_get_config.pl -e -f -g -b 421
+perl dc_get_config.pl -e -f -g -b 444
+perl dc_get_config.pl -e -f -g -b 474
+perl dc_get_config.pl -e -f -g -b 498
+perl dc_get_config.pl -e -f -g -b 543
+perl dc_get_config.pl -e -f -g -b 557
+perl dc_get_config.pl -e -f -g -b 681
+perl dc_get_config.pl -e -f -g -b 2181
